@@ -207,8 +207,11 @@
   .link-btn { margin-left: 4px; font-family: inherit; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid #CBD3DE; background: var(--panel); color: var(--brand); cursor: pointer; white-space: nowrap; }
   .link-btn:hover { border-color: var(--brand); background: var(--brand-soft); }
   /* 정렬 메뉴(2026-10-02): 표 머리글 클릭 정렬을 메뉴로도 고를 수 있게. CSV 다운로드 옆 — 받는 파일도 이 순서를 따른다 */
-  .sort-row { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--ink-soft); }
-  .sort-row select { max-width: 190px; }
+  /* 2026-10-05: 탭마다 정렬 항목 이름 길이가 달라 메뉴 폭이 바뀌고 "엑셀 다운로드"가 접혔다 → 줄 전체를 쓰고,
+     정렬 메뉴만 남는 폭을 채우며(탭과 무관하게 같은 폭), 나머지는 글자 길이대로 고정·줄바꿈 없음 */
+  .sort-row { display: flex; align-items: center; gap: 6px; flex: 1 1 100%; min-width: 0; font-size: 12px; color: var(--ink-soft); }
+  .sort-row label, .sort-row .csv-btn, .sort-row #csvScope { flex: none; white-space: nowrap; }
+  .sort-row #sortSel { flex: 1 1 0; min-width: 0; }
   /* 눌러서 그 학교만 골라 보는 상단 통계 칸 */
   .topbar .stat.pick { cursor: pointer; }
   .topbar .stat.pick:hover .label { text-decoration: underline; }
@@ -653,7 +656,7 @@
           <option value="tab">이 탭 항목만</option>
           <option value="all">모든 항목</option>
         </select>
-        <button type="button" id="downloadXlsxBtn" class="csv-btn" title="지금 보이는 목록(조건·정렬 그대로)을 머리글·열 너비·필터·인쇄 설정을 갖춘 엑셀 파일로 받습니다. 바로 첨부할 때">엑셀 다운로드</button>
+        <button type="button" id="downloadXlsxBtn" class="csv-btn" title="엑셀 다운로드 — 지금 보이는 목록(조건·정렬 그대로)을 머리글·열 너비·필터·인쇄 설정을 갖춘 엑셀 파일로 받습니다. 바로 첨부할 때">엑셀</button>
         <button type="button" id="downloadCsvBtn" class="csv-btn" title="같은 목록을 서식 없는 CSV로 받습니다. 다른 프로그램에 자료를 다시 넣을 때">CSV</button>
       </div>
     </div>
