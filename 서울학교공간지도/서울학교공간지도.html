@@ -937,6 +937,11 @@ const numOrNull = v => (typeof v === 'number' && isFinite(v)) ? v : null;
 const clsOf = s => { const e = studentOf(s.name); return e ? numOrNull(e.cls) : null; };
 const stuOf = s => { const e = studentOf(s.name); return e ? numOrNull(e.stu) : null; };
 const fmtNum = v => v == null ? '—' : Number(v).toLocaleString('ko-KR');
+// 소수 첫째 자리 반올림(2026-10-05 숫자 대조): toFixed·Math.round(x*10)은 16.45(=329÷20)처럼 딱 .x5인 값을 컴퓨터 소수 오차로
+// 16.4로 내렸다. 아주 작은 값(1e-9)을 더해 0.5는 늘 올리고(음수는 절댓값 기준), 모든 소수 한 자리 표시·계산이 이 함수를 쓴다.
+const round1 = v => v == null ? null : Math.sign(v) * Math.round(Math.abs(v) * 10 + 1e-9) / 10;
+const fix1 = v => round1(v).toFixed(1);
+const round0 = v => v == null ? null : Math.sign(v) * Math.round(Math.abs(v) + 1e-9);   // 정수 %도 같은 이유로(예: 29÷200 = 14.5% → 15%)
 // 값이 비어 있는 이유(표·카드·CSV 비고용). 값이 다 있으면 빈 문자열.
 function studentNote(s) {
   if (!hasStudentData()) return '';
@@ -1016,7 +1021,7 @@ const TREND_BINS = [
 ];
 const TREND_NONE = '#ECEEF1';
 const trendBinOfRate = r => r == null ? null : TREND_BINS.find(b => r < b.max);
-const fmtPct = r => r == null ? '—' : (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r * 100).toFixed(1) + '%';
+const fmtPct = r => r == null ? '—' : (r > 0 ? '+' : r < 0 ? '−' : '') + fix1(Math.abs(r * 100)) + '%';
 // 학교 묶음의 증감률: 두 해 모두 값이 있는 학교만 합쳐서 (합계 차 ÷ 첫 해 합계) — 학교별 증감률의 평균이 아님
 function trendSum(schools) {
   let a = 0, b = 0, n = 0;
@@ -1068,7 +1073,7 @@ const SITE_BINS = [
 const SITE_NONE = '#ECEEF1';
 const siteBinOf = v => v == null ? null : SITE_BINS.find(b => v < b.max);
 const fmtArea = v => v == null ? '—' : Math.round(v).toLocaleString('ko-KR') + '㎡';
-const fmtPer = v => v == null ? '—' : (v >= 100 ? Math.round(v) : v.toFixed(1)) + '㎡';
+const fmtPer = v => v == null ? '—' : (v >= 100 ? Math.round(v) : fix1(v)) + '㎡';
 // 학교 묶음의 1인당 교지: 값이 있는 학교의 배분 면적 합 ÷ 그 학교들의 학생 수 합(학교별 1인당 값의 평균이 아님)
 function siteSum(schools) {
   let area = 0, stu = 0, n = 0;
@@ -1230,19 +1235,19 @@ function renderTopBar() {
   if (coordRow.hidden && coordIssueOnly) { coordIssueOnly = false; document.getElementById('coordIssueToggle').checked = false; }
   let head;
   // 상단 통계는 필터와 무관한 서울 전체 기준이라, 첫 칸에 그렇게 밝힌다(2026-10-03 — 고등학교만 골라도 −4.0% 등 전체 값이 보여 헷갈렸음)
-  const totalCell = `<div class="stat total" title="상단 숫자는 필터·칩과 관계없이 서울 전체 학교 기준입니다"><span class="num">${total}</span><span class="label">서울 전체<span style="display:block;font-size:9.5px;">(필터와 무관)</span></span></div>`;
+  const totalCell = `<div class="stat total" title="상단 숫자는 필터·칩과 관계없이 서울 전체 학교 기준입니다"><span class="num">${fmtNum(total)}</span><span class="label">서울 전체<span style="display:block;font-size:9.5px;">(필터와 무관)</span></span></div>`;
   if (activeLayer === 'size') {
     const w = SCHOOLS.filter(s => stuOf(s) != null);
     const sc = SCHOOLS.reduce((a, s) => a + (clsOf(s) || 0), 0), ss = SCHOOLS.reduce((a, s) => a + (stuOf(s) || 0), 0);
     head = `${totalCell}
       <div class="stat"><span class="num" style="color:#23807A">${fmtNum(sc)}</span><span class="label">학급 수</span></div>
-      <div class="stat"><span class="num" style="color:#23807A">${fmtNum(ss)}</span><span class="label">학생 수<span style="display:block;font-size:9.5px;">(${w.length}개교 집계)</span></span></div>`;
+      <div class="stat"><span class="num" style="color:#23807A">${fmtNum(ss)}</span><span class="label">학생 수<span style="display:block;font-size:9.5px;">(${fmtNum(w.length)}개교 집계)</span></span></div>`;
   } else if (activeLayer === 'trend') {
     // 필터와 무관하게 전체 기준. 합계는 두 해 모두 값이 있는 학교만
     const t = trendSum(SCHOOLS), na = SCHOOLS.filter(s => trendRate(s) == null).length;
     const st = (n, label) => `<div class="stat"><span class="num" style="color:#2B5C8A">${n}</span><span class="label">${label}</span></div>`;
     head = `${totalCell}
-      ${st(fmtNum(t.a), `${trendY0()}년 학생<span style="display:block;font-size:9.5px;">(비교 가능 ${t.n}개교 합계)</span>`)}
+      ${st(fmtNum(t.a), `${trendY0()}년 학생<span style="display:block;font-size:9.5px;">(비교 가능 ${fmtNum(t.n)}개교 합계)</span>`)}
       ${st(fmtNum(t.b), `${trendY1()}년 학생`)}
       ${st(fmtPct(t.rate), '증감률')}
       <div class="stat" data-pick="trend:na"><span class="num" style="color:var(--ink-soft)">${na}</span><span class="label">비교 불가</span></div>`;
@@ -1252,7 +1257,7 @@ function renderTopBar() {
     const shared = SCHOOLS.filter(s => (siteInfo(s) || {}).group).length;
     const st = (n, label) => `<div class="stat"><span class="num" style="color:#8E6A28">${n}</span><span class="label">${label}</span></div>`;
     head = `${totalCell}
-      ${st(fmtPer(t.per), `학생 1인당 교지<span style="display:block;font-size:9.5px;">(${t.n}개교 합계)</span>`)}
+      ${st(fmtPer(t.per), `학생 1인당 교지<span style="display:block;font-size:9.5px;">(${fmtNum(t.n)}개교 합계)</span>`)}
       ${st((t.area / 1e6).toFixed(2) + '㎢', '교지 합계')}
       ${st(shared, '땅을 함께 쓰는 학교').replace('<div class="stat"', '<div class="stat" data-pick="site:shared"')}
       <div class="stat" data-pick="site:na"><span class="num" style="color:var(--ink-soft)">${na}</span><span class="label">비교 불가</span></div>`;
@@ -1269,8 +1274,8 @@ function renderTopBar() {
     const openTotal = SCHOOLS.filter(s => !isSchoolClosed(s) && FACILITIES.some(f => s.fac[f] === '유')).length;
     const exTotal = SCHOOLS.filter(s => s.ex).length;   // 공시 제외(개방 공시 보기에만 있음)
     head = `${totalCell}
-      <div class="stat open"><span class="num">${openTotal}</span><span class="label">개방</span></div>
-      <div class="stat closed"><span class="num">${total - openTotal - exTotal}</span><span class="label">미개방</span></div>
+      <div class="stat open"><span class="num">${fmtNum(openTotal)}</span><span class="label">개방</span></div>
+      <div class="stat closed"><span class="num">${fmtNum(total - openTotal - exTotal)}</span><span class="label">미개방</span></div>
       ${exTotal ? `<div class="stat"><span class="num" style="color:var(--ink-soft)">${exTotal}</span><span class="label">공시 제외</span></div>` : ''}`;
   }
   const bar = document.getElementById('topBar');
@@ -1309,16 +1314,16 @@ function renderSummaryPanel(schools) {
     const totSt = rows.reduce((a, r) => a + r.st, 0), totC = rows.reduce((a, r) => a + r.c, 0);
     const noVal = schools.filter(s => stuOf(s) == null).length;
     panel.innerHTML = `
-      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생·학급 (${schools.length}개교 기준)</div>
+      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생·학급 (${fmtNum(schools.length)}개교 기준)</div>
       <div class="sp-grid">
         ${rows.map(r => `
-          <div class="sp-row" title="${levelLabel(r.l)} ${r.n}개교 · 학급 ${fmtNum(r.c)} · 학생 ${fmtNum(r.st)}명">
+          <div class="sp-row" title="${levelLabel(r.l)} ${fmtNum(r.n)}개교 · 학급 ${fmtNum(r.c)} · 학생 ${fmtNum(r.st)}명">
             <span class="sp-name">${levelLabel(r.l)}</span>
             <span class="sp-bar"><span class="sp-bar-fill" style="width:${totSt ? Math.round(r.st / totSt * 100) : 0}%;background:${LEVEL_COLOR[r.l]}"></span></span>
             <span class="sp-count">${fmtNum(r.st)}명</span>
           </div>`).join('')}
       </div>
-      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">학급 ${fmtNum(totC)} · 학생 ${fmtNum(totSt)}명${totC ? ` · 학급당 ${(totSt / totC).toFixed(1)}명` : ''}${noVal ? ` · 값 없는 학교 ${noVal}개교 제외` : ''}</div>`;
+      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">학급 ${fmtNum(totC)} · 학생 ${fmtNum(totSt)}명${totC ? ` · 학급당 ${fix1(totSt / totC)}명` : ''}${noVal ? ` · 값 없는 학교 ${fmtNum(noVal)}개교 제외` : ''}</div>`;
     return;
   }
   if (activeLayer === 'trend') {
@@ -1326,16 +1331,16 @@ function renderSummaryPanel(schools) {
     const all = trendSum(schools);
     const maxAbs = Math.max(1e-9, ...rows.map(r => Math.abs(r.rate || 0)));
     panel.innerHTML = `
-      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생 수 ${trendY0()}→${trendY1()} (${schools.length}개교 기준)</div>
+      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생 수 ${trendY0()}→${trendY1()} (${fmtNum(schools.length)}개교 기준)</div>
       <div class="sp-grid">
         ${rows.map(r => `
-          <div class="sp-row" title="${levelLabel(r.l)} ${r.n}개교 · ${trendY0()}년 ${fmtNum(r.a)}명 → ${trendY1()}년 ${fmtNum(r.b)}명">
+          <div class="sp-row" title="${levelLabel(r.l)} ${fmtNum(r.n)}개교 · ${trendY0()}년 ${fmtNum(r.a)}명 → ${trendY1()}년 ${fmtNum(r.b)}명">
             <span class="sp-name">${levelLabel(r.l)}</span>
             <span class="sp-bar"><span class="sp-bar-fill" style="width:${Math.round(Math.abs(r.rate || 0) / maxAbs * 100)}%;background:${(trendBinOfRate(r.rate) || {}).color || TREND_NONE}"></span></span>
             <span class="sp-count">${fmtPct(r.rate)}</span>
           </div>`).join('')}
       </div>
-      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">${trendY0()}년 ${fmtNum(all.a)}명 → ${trendY1()}년 ${fmtNum(all.b)}명 (${fmtPct(all.rate)}) · 두 해 모두 값이 있는 ${all.n}개교 합계 기준${schools.length - all.n ? ` · 비교 불가 ${schools.length - all.n}개교 제외` : ''}</div>`;
+      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">${trendY0()}년 ${fmtNum(all.a)}명 → ${trendY1()}년 ${fmtNum(all.b)}명 (${fmtPct(all.rate)}) · 두 해 모두 값이 있는 ${fmtNum(all.n)}개교 합계 기준${schools.length - all.n ? ` · 비교 불가 ${fmtNum(schools.length - all.n)}개교 제외` : ''}</div>`;
     return;
   }
   if (activeLayer === 'site') {
@@ -1343,16 +1348,16 @@ function renderSummaryPanel(schools) {
     const all = siteSum(schools);
     const maxPer = Math.max(1e-9, ...rows.map(r => r.per || 0));
     panel.innerHTML = `
-      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생 1인당 교지 (${schools.length}개교 기준)</div>
+      <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 학생 1인당 교지 (${fmtNum(schools.length)}개교 기준)</div>
       <div class="sp-grid">
         ${rows.map(r => `
-          <div class="sp-row" title="${levelLabel(r.l)} ${r.n}개교 · 교지 ${fmtArea(r.area)} · 학생 ${fmtNum(r.stu)}명">
+          <div class="sp-row" title="${levelLabel(r.l)} ${fmtNum(r.n)}개교 · 교지 ${fmtArea(r.area)} · 학생 ${fmtNum(r.stu)}명">
             <span class="sp-name">${levelLabel(r.l)}</span>
             <span class="sp-bar"><span class="sp-bar-fill" style="width:${Math.round((r.per || 0) / maxPer * 100)}%;background:${(siteBinOf(r.per) || {}).color || SITE_NONE}"></span></span>
             <span class="sp-count">${fmtPer(r.per)}</span>
           </div>`).join('')}
       </div>
-      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">교지 ${fmtArea(all.area)} ÷ 학생 ${fmtNum(all.stu)}명 = ${fmtPer(all.per)} · 값이 있는 ${all.n}개교 합계 기준${schools.length - all.n ? ` · 비교 불가 ${schools.length - all.n}개교 제외` : ''}</div>`;
+      <div style="margin-top:6px;font-size:10.5px;color:var(--ink-soft);">교지 ${fmtArea(all.area)} ÷ 학생 ${fmtNum(all.stu)}명 = ${fmtPer(all.per)} · 값이 있는 ${fmtNum(all.n)}개교 합계 기준${schools.length - all.n ? ` · 비교 불가 ${fmtNum(schools.length - all.n)}개교 제외` : ''}</div>`;
     return;
   }
   if (activeLayer === 'change') {
@@ -1370,10 +1375,10 @@ function renderSummaryPanel(schools) {
     const max = Math.max(1, ...rows.map(r => Math.max(r.gain, r.loss)));
     const half = (n, color, side) => `<span style="flex:1;display:flex;justify-content:${side}"><span style="width:${Math.round(n / max * 100)}%;background:${color};border-radius:999px"></span></span>`;
     panel.innerHTML = `
-      <div class="sp-title fold-title" title="눌러서 접기·펼치기">시설별 개방 변화 ${prevYear()}→${DISCLOSURE_YEAR} (${schools.length}개교 기준)</div>
+      <div class="sp-title fold-title" title="눌러서 접기·펼치기">시설별 개방 변화 ${prevYear()}→${DISCLOSURE_YEAR} (${fmtNum(schools.length)}개교 기준)</div>
       <div class="sp-grid">
         ${rows.map(r => `
-          <div class="sp-row" title="${r.f}: 새로 개방 ${r.gain}개교 · 개방 중단 ${r.loss}개교">
+          <div class="sp-row" title="${r.f}: 새로 개방 ${fmtNum(r.gain)}개교 · 개방 중단 ${fmtNum(r.loss)}개교">
             <span class="sp-name">${r.f}</span>
             <span class="sp-bar" style="display:flex;gap:2px;background:none">${half(r.loss, CHANGE_KINDS.loss.color, 'flex-end')}${half(r.gain, CHANGE_KINDS.gain.color, 'flex-start')}</span>
             <span class="sp-count"><span style="color:${CHANGE_KINDS.gain.color}">+${r.gain}</span> <span style="color:${CHANGE_KINDS.loss.color}">−${r.loss}</span></span>
@@ -1389,13 +1394,13 @@ function renderSummaryPanel(schools) {
     return { f, open, total: applicable.length, pct };
   });
   panel.innerHTML = `
-    <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 시설 개방 현황 (${schools.length}개교 기준)</div>
+    <div class="sp-title fold-title" title="눌러서 접기·펼치기">조건별 시설 개방 현황 (${fmtNum(schools.length)}개교 기준)</div>
     <div class="sp-grid">
       ${rows.map(r => `
         <div class="sp-row">
           <span class="sp-name">${r.f}</span>
           <span class="sp-bar"><span class="sp-bar-fill" style="width:${r.pct}%"></span></span>
-          <span class="sp-count">${r.open}/${r.total}</span>
+          <span class="sp-count">${fmtNum(r.open)}/${fmtNum(r.total)}</span>
         </div>
       `).join('')}
     </div>
@@ -1426,7 +1431,7 @@ function buildPinSvg(school, isSelected) {
   const iconKey = openFacs.length > 0 ? openFacs[0] : '교실';
   const iconInner = FAC_ICON_INNER[iconKey] || '';
   // 학생 수 추이: 핀 속 숫자 = 증감률(%, 부호 포함, 소수점 없이)
-  const tTxt = tRate == null ? '–' : (tRate > 0 ? '+' : tRate < 0 ? '−' : '') + Math.round(Math.abs(tRate * 100));
+  const tTxt = tRate == null ? '–' : (tRate > 0 ? '+' : tRate < 0 ? '−' : '') + round0(Math.abs(tRate * 100));
   // 교지 면적: 핀 속 숫자 = 학생 1인당 교지(㎡, 반올림)
   const sTxt = sPer == null ? '–' : String(Math.round(sPer));
   const inner = isSite
@@ -1673,7 +1678,8 @@ function computeGroupStats() {
     st.stu += stuOf(s) || 0;
     if (stuOf(s) == null) st.noStu++;
     if (effectiveOpen(s)) st.open++;
-    FACILITIES.forEach(f => { if (s.fac[f] === '유') st.facOpen[f] = (st.facOpen[f] || 0) + 1; });
+    // 시설별 개방 수도 "개방 학교"와 같이 휴교 학교는 닫힌 것으로 센다(2026-10-05 숫자 대조 — 예전엔 휴교 학교의 "유"가 시설 열에만 들어갈 수 있었음)
+    if (!isSchoolClosed(s)) FACILITIES.forEach(f => { if (s.fac[f] === '유') st.facOpen[f] = (st.facOpen[f] || 0) + 1; });
     const te = trendEnds(s);
     if (te) { st.tA += te[0]; st.tB += te[1]; st.tN++; }
     const si = siteInfo(s);
@@ -1785,8 +1791,8 @@ function refreshDistrictPolygons() {
       : isSite ? `${g} ${fmtPer(sPerOf(st))}`
       : isTrend ? `${g} ${fmtPct(tRateOf(st))}`
       : isChange ? `${g} +${st.gain} −${st.loss}`
-      : isSize ? `${g} ${st.total}개교 · ${st.stu >= 10000 ? (st.stu / 10000).toFixed(1) + '만' : fmtNum(st.stu)}명`
-      : st.base === 0 ? `${g} -` : `${g} ${facRateName()}${Math.round(st.open / st.base * 100)}%`;
+      : isSize ? `${g} ${fmtNum(st.total)}개교 · ${st.stu >= 10000 ? fix1(st.stu / 10000) + '만' : fmtNum(st.stu)}명`
+      : st.base === 0 ? `${g} -` : `${g} ${facRateName()}${round0(st.open / st.base * 100)}%`;
   });
 }
 
@@ -1965,7 +1971,7 @@ function filteredSchools(forRate) {
 }
 
 const FACILITY_SHORT = {
-  교실: '교실', 시청각실: '시청각', 체육관: '체육관', 운동장: '운동장',
+  교실: '교실', 시청각실: '시청각실', 체육관: '체육관', 운동장: '운동장',
   수영장: '수영장', 테니스장: '테니스', 잔디운동장: '잔디',
   체육장: '체육장', 강당: '강당', 일반교과교실: '일반교과교실', 특별교실: '특별교실'   // 시설 칩·CSV와 같은 공시 항목 이름(2026-10-03, 예전 "일반교실")
 };
@@ -2143,14 +2149,14 @@ function csvColumnGroups() {
     facility: [...FACILITIES.map(f => [f + '(공시)', s => s.fac[f]]), ['공시 제외 사유', s => s.ex || '']],
     change: chg ? [[`${prevYear()}년 공시 대비(학교 단위)`, s => { const k = changeKind(s, FACILITIES); return CHANGE_KINDS[k].label + (k === 'na' ? ` (${changeNaReason(s)})` : ''); }],
       [`${prevYear()}년 공시 대비 시설별 변화`, s => facChanges(s).map(x => `${x.f} ${x.from}→${x.to}`).join('; ')]] : [],
-    size: sd ? [['학급수', s => clsOf(s) ?? ''], ['학생수', s => stuOf(s) ?? ''], ['학급당 학생', s => clsOf(s) && stuOf(s) != null ? (stuOf(s) / clsOf(s)).toFixed(1) : '']] : [],
+    size: sd ? [['학급수', s => clsOf(s) ?? ''], ['학생수', s => stuOf(s) ?? ''], ['학급당 학생', s => clsOf(s) && stuOf(s) != null ? fix1(stuOf(s) / clsOf(s)) : '']] : [],
     sizeNote: sd ? [['학급·학생 비고', s => studentNote(s)]] : [],
     trend: td ? [...TREND_YEARS.map((y, i) => [`${y}년 학생수`, s => { const v = trendOf(s); return v && v[i] != null ? v[i] : ''; }]),
-      [`학생수 증감률 ${trendY0()}→${trendY1()}(%)`, s => trendRate(s) == null ? `비교 불가(${trendNaReason(s)})` : (trendRate(s) * 100).toFixed(1)]] : [],
+      [`학생수 증감률 ${trendY0()}→${trendY1()}(%)`, s => trendRate(s) == null ? `비교 불가(${trendNaReason(s)})` : fix1(trendRate(s) * 100)]] : [],
     site: sa ? [[`교지 계(교사대지+체육장, ㎡, ${SITE_AREA_YEAR} 공시)`, s => { const e = site(s); return e && !e.ex ? e.a ?? '' : ''; }],
       ['교사대지(㎡)', s => { const e = site(s); return e && !e.ex ? e.b ?? '' : ''; }], ['체육장(㎡)', s => { const e = site(s); return e && !e.ex ? e.g ?? '' : ''; }],
       ['부속토지(㎡)', s => { const e = site(s); return e && !e.ex ? e.x ?? '' : ''; }], ['땅을 함께 쓰는 학교(공시 원문)', s => { const e = site(s); return e && !e.ex ? (e.p || []).join(', ') : ''; }],
-      ['학생 1인당 교지(㎡)', s => sitePer(s) == null ? `비교 불가(${siteNaReason(s)})` : sitePer(s).toFixed(1)]] : [],
+      ['학생 1인당 교지(㎡)', s => sitePer(s) == null ? `비교 불가(${siteNaReason(s)})` : fix1(sitePer(s))]] : [],
     contact: [['전화', s => telText((contactOf(s.name) || {}).tel)], ['홈페이지', s => safeUrl((contactOf(s.name) || {}).url)]],
     status: [['학교 상태', s => statusText(s)]],
     // 이 탭 항목만: 예외가 있는 학교에만 채워지는 두 열(학급·학생 비고, 학교 상태)을 "비고" 하나로 합친다
@@ -2182,7 +2188,7 @@ function schoolsToCsv(schools, scope) {
 function csvSourceLines(names) {
   const has = n => names.includes(n);
   const now = new Date();
-  const lines = [`출처: 학교알리미 정보공시 「학교시설 개방에 관한 사항」 ${DISCLOSURE_YEAR}년 공시(수집일 ${DISCLOSURE_DATA_DATE}), 서울 ${SCHOOLS.length}개교`];
+  const lines = [`출처: 학교알리미 정보공시 「학교시설 개방에 관한 사항」 ${DISCLOSURE_YEAR}년 공시(수집일 ${DISCLOSURE_DATA_DATE}), 서울 ${fmtNum(SCHOOLS.length)}개교`];
   if (has('change') && hasPrevData()) lines.push(`비교 기준: 같은 항목 ${prevYear()}년 공시`);
   if ((has('size') || has('sizeNote')) && hasStudentData())
     lines.push('학급·학생 수: 학교알리미 정보공시 학생 현황' + (typeof STUDENT_DATA_DATE !== 'undefined' ? `(수집일 ${STUDENT_DATA_DATE})` : ''));
@@ -2456,7 +2462,7 @@ function tabNumCols() {
   if (activeLayer === 'size' && hasStudentData()) return [
     { key: 'cls', label: '학급', title: '학급 수(특수학급 포함, 학교알리미 공시)', cell: s => stuValCell(s, clsOf(s)), w: 41 },
     { key: 'stu', label: '학생', title: '학생 수(학교알리미 공시)', cell: s => stuValCell(s, stuOf(s)), wide: true },
-    { key: 'avg', label: '학급당', title: '학급당 학생 수', cell: s => numTd(avgOf(s), v => v.toFixed(1)), w: 47 }];
+    { key: 'avg', label: '학급당', title: '학급당 학생 수', cell: s => numTd(avgOf(s), fix1), w: 47 }];
   if (activeLayer === 'trend' && hasTrendData()) return [
     { key: 't0', label: String(trendY0()), title: `${trendY0()}년 학생 수`, cell: s => numTd(trendYearVal(s, trendI0), fmtNum, trendNaReason(s)), w: 47 },
     { key: 't1', label: String(trendY1()), title: `${trendY1()}년 학생 수`, cell: s => numTd(trendYearVal(s, trendI1), fmtNum, trendNaReason(s)), w: 47 },
@@ -2474,7 +2480,7 @@ function numTd(v, fmt = fmtNum, why = '') {
 function siteCell(s) {
   const r = siteInfo(s), v = sitePer(s);
   const t = v == null ? siteNaReason(s) : `교지 ${fmtArea(r.area)} ÷ 학생 ${fmtNum(r.stu)}명${r.group ? ' (땅을 함께 쓰는 학교 합산: ' + r.group.join(', ') + ')' : ''}`;
-  return `<td class="num-col" title="${esc(t)}">${v == null ? '—' : (v >= 100 ? Math.round(v) : v.toFixed(1))}</td>`;   // 단위(㎡)는 열 이름에 — 좁은 표에서 잘리지 않게
+  return `<td class="num-col" title="${esc(t)}">${v == null ? '—' : (v >= 100 ? Math.round(v) : fix1(v))}</td>`;   // 단위(㎡)는 열 이름에 — 좁은 표에서 잘리지 않게
 }
 function trendCell(s) {
   const r = trendRate(s), v = trendOf(s);
@@ -2840,7 +2846,7 @@ async function copyText(text) {
   }
 }
 const fmtR = m => m < 1000 ? m + 'm' : (m / 1000) + 'km';
-const fmtDist = d => d < 1000 ? Math.max(10, Math.round(d / 10) * 10) + 'm' : (d / 1000).toFixed(1) + 'km';
+const fmtDist = d => d < 1000 ? Math.max(10, Math.round(d / 10) * 10) + 'm' : fix1(d / 1000) + 'km';
 function distM(lat1, lng1, lat2, lng2) {
   const R = 6371000, r = Math.PI / 180;
   const dLat = (lat2 - lat1) * r, dLng = (lng2 - lng1) * r;
@@ -2927,7 +2933,7 @@ const countWord = n => ['', '한', '두', '세', '네', '다섯', '여섯', '일
 const hasJong = w => { const c = String(w).charCodeAt(String(w).length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0; };
 const josaWa = w => hasJong(w) ? '과' : '와';
 const josaWun = w => hasJong(w) ? '은' : '는';
-// 학교 카드의 "학교 부지" 묶음: 교지 계(교사대지·체육장 내역), 학생 1인당, 같은 구·같은 학교급과 서울 같은 학교급 비교, 땅을 함께 쓰는 학교
+// 학교 카드의 "교지" 묶음: 교지 계(교사대지·체육장 내역), 학생 1인당, 같은 구·같은 학교급과 서울 같은 학교급 비교, 땅을 함께 쓰는 학교
 function siteCardHtml(s) {
   if (!hasSiteData()) return '';
   const e = siteOf(s), r = siteInfo(s), v = sitePer(s);
@@ -2981,7 +2987,7 @@ function trendCardHtml(s) {
   // 비교는 한 문장으로 쓰면 좁은 카드에서 구절 중간이 꺾여서, "지역 | 증감률" 두 칸 목록으로 줄을 맞춘다
   return `<div class="pc-row pc-wrap"><span class="pc-k">추이</span><span class="pc-v"><span class="pc-nw">${trendY0()} <b>${fmtNum(e[0])}</b> → ${trendY1()} <b>${fmtNum(e[1])}명</b></span> <span class="pc-nw">(<b>${fmtPct(r)}</b>)</span>
     <span class="pc-cmp"><span>${esc(s.district)} ${esc(lv)}</span><span>${fmtPct(same.rate)}</span><span>서울 ${esc(lv)}</span><span>${fmtPct(seoul.rate)}</span></span></span>
-    <details class="pc-detail pc-sub pc-full"><summary>연도별 보기</summary><div class="pc-detail-body">${years}<div class="pc-cmp-note">위 비교 값은 같은 기간(${trendY0()}→${trendY1()}) 두 해 모두 값이 있는 학교의 학생 수 합계로 계산했습니다(${esc(s.district)} ${esc(lv)} ${same.n}개교, 서울 ${esc(lv)} ${seoul.n}개교).</div></div></details></div>`;
+    <details class="pc-detail pc-sub pc-full"><summary>연도별 보기</summary><div class="pc-detail-body">${years}<div class="pc-cmp-note">위 비교 값은 같은 기간(${trendY0()}→${trendY1()}) 두 해 모두 값이 있는 학교의 학생 수 합계로 계산했습니다(${esc(s.district)} ${esc(lv)} ${fmtNum(same.n)}개교, 서울 ${esc(lv)} ${fmtNum(seoul.n)}개교).</div></div></details></div>`;
 }
 // 학교 카드 비교 기준(2026-10-03): 시설 개방·학급당 학생도 추이·교지처럼 "같은 구·같은 학교급 / 서울 같은 학교급"과 나란히(기획 원칙 "값 + 비교 기준").
 // 카드는 시설 칩과 무관하게 6종 기준(같은 학교를 어느 탭에서 봐도 같은 값). 공시 제외는 분모에서 빼고, 휴교는 닫힌 것으로.
@@ -3023,7 +3029,7 @@ function openCmpHtml(s) {
   const same = openShareOf(SCHOOLS.filter(x => x.district === s.district && x.level === s.level));
   const seoul = openShareOf(SCHOOLS.filter(x => x.level === s.level));
   if (!same || !seoul) return '';
-  const f = r => `${Math.round(r.rate * 100)}% (${r.n}/${r.of})`;
+  const f = r => `${round0(r.rate * 100)}% (${r.n}/${r.of})`;
   return `<div class="pc-row pc-wrap"><span class="pc-k">비교</span><span class="pc-v"><span class="pc-none" style="font-size:11px">개방 시설이 하나라도 있는 학교 비율</span>${cmpPair(s, f, same, seoul)}</span></div>`;
 }
 function stuCardHtml(s) {
@@ -3031,9 +3037,9 @@ function stuCardHtml(s) {
   if (!e) { const st = statusOf(s.name); return `<span class="pc-none">${st ? esc(st.label) : '등록된 정보 없음'}</span>`; }
   if (e.ex) return `<span class="pc-none">공시 제외 — ${esc(e.ex)}</span>`;
   const c = clsOf(s), st = stuOf(s);
-  const avg = c && st ? ` <span class="pc-none pc-nw">(학급당 ${(st / c).toFixed(1)}명)</span>` : '';
+  const avg = c && st ? ` <span class="pc-none pc-nw">(학급당 ${fix1(st / c)}명)</span>` : '';
   const same = perClassOf(SCHOOLS.filter(x => x.district === s.district && x.level === s.level)), seoul = perClassOf(SCHOOLS.filter(x => x.level === s.level));
-  const cmp = avg && same && seoul ? `<span class="pc-none" style="display:block;font-size:11px;margin-top:3px">학급당 학생</span>${cmpPair(s, r => r.per.toFixed(1) + '명', same, seoul)}` : '';
+  const cmp = avg && same && seoul ? `<span class="pc-none" style="display:block;font-size:11px;margin-top:3px">학급당 학생</span>${cmpPair(s, r => fix1(r.per) + '명', same, seoul)}` : '';
   return `학급 <b>${fmtNum(c)}</b> · 학생 <b>${st == null ? '—' : fmtNum(st) + '명'}</b>${avg}${note ? ` <span class="pc-none">${esc(note)}</span>` : ''}${cmp}`;
 }
 const CARD_SEC_OF_LAYER = { facility: 'fac', change: 'fac', size: 'stu', trend: 'stu', site: 'site' };
@@ -3106,7 +3112,7 @@ function renderPlaceCard() {
       ${hasStudentData() ? `<div class="pc-row"><span class="pc-k">학급·학생</span><span class="pc-v">${stuCardHtml(s)}</span></div>` : ''}
       ${trendCardHtml(s)}
     </div>`) : ''}
-    ${siteHtml ? fold('site', '학교 부지', `학교 공시값(${typeof SITE_AREA_YEAR !== 'undefined' ? SITE_AREA_YEAR : '?'}) · 건물 면적 아님`, siteSumText,
+    ${siteHtml ? fold('site', '교지', `학교 공시값(${typeof SITE_AREA_YEAR !== 'undefined' ? SITE_AREA_YEAR : '?'}) · 건물 면적 아님`, siteSumText,
     `<div class="pc-rows">${siteHtml}</div>`) : ''}
     <div class="pc-sec">연락처</div>
     <div class="pc-rows">
@@ -3354,7 +3360,7 @@ function updateMarkerImage(name) {
 function checkedSchools() { return SCHOOLS.filter(s => checked.has(s.name)); }
 function updateSelBar() {
   document.getElementById('selBar').hidden = checked.size === 0;
-  document.getElementById('selCount').textContent = `${checked.size}개교 선택`;
+  document.getElementById('selCount').textContent = `${fmtNum(checked.size)}개교 선택`;
 }
 function syncHeaderCheck() {
   const ca = document.getElementById('chkAll');
@@ -3460,9 +3466,9 @@ function renderRadiusResult() {
       ${shown.slice(0, MAX).map(x => `<li data-name="${x.s.name}">
         <span class="dot ${effectiveOpen(x.s) ? 'open' : 'closed'}"></span>
         <span class="mp-name">${x.s.name}</span><span class="mp-sub">${x.s.level}</span><span class="mp-dist">${fmtDist(x.d)}</span></li>`).join('')}
-      ${shown.length > MAX ? `<li class="mp-more">외 ${shown.length - MAX}개교</li>` : ''}
+      ${shown.length > MAX ? `<li class="mp-more">외 ${fmtNum(shown.length - MAX)}개교</li>` : ''}
     </ul>
-    <button type="button" class="csv-btn mp-wide" id="radiusSelectBtn">목록 ${shown.length}개교 모두 선택</button>`}`;
+    <button type="button" class="csv-btn mp-wide" id="radiusSelectBtn">목록 ${fmtNum(shown.length)}개교 모두 선택</button>`}`;
   box.querySelectorAll('li[data-name]').forEach(li => {
     li.onclick = () => highlightSchool(SCHOOL_BY_NAME[li.dataset.name]);
   });
@@ -3471,7 +3477,7 @@ function renderRadiusResult() {
     radiusShown.forEach(s => { checked.add(s.name); updateMarkerImage(s.name); });
     updateSelBar();
     renderList();
-    toast(`${radiusShown.length}개교를 선택했습니다. 왼쪽 목록 위에서 복사·CSV로 내보낼 수 있어요.`);
+    toast(`${fmtNum(radiusShown.length)}개교를 선택했습니다. 왼쪽 목록 위에서 복사·CSV로 내보낼 수 있어요.`);
   };
 }
 
@@ -3598,12 +3604,12 @@ function renderGap() {
   box.innerHTML = `
     <div class="mp-sum">기준: <b>${critLabel()}</b> · ${levelCritLabel()} (<b>${g.schoolCount}</b>개교)<br>
       반경 ${fmtR(gapM)} 안에 기준 학교가 없는 지역: <b>약 ${(gapCells.length * A).toFixed(0)}㎢</b>
-      (사람이 사는 곳으로 추정한 ${(g.cells.length * A).toFixed(0)}㎢ 중 <b>${(gapCells.length / g.cells.length * 100).toFixed(1)}%</b>)</div>
+      (사람이 사는 곳으로 추정한 ${(g.cells.length * A).toFixed(0)}㎢ 중 <b>${fix1(gapCells.length / g.cells.length * 100)}%</b>)</div>
     <div class="mp-sub-title">${unitLabel()}별 반경 밖 비율 (가나다순)</div>
     <ul class="mp-list gap-list">
       ${rows.map(r => `<li data-g="${r.k}"><span class="mp-name">${r.k}</span>
         <span class="gap-bar"><span style="width:${Math.round(r.pct * 100)}%"></span></span>
-        <span class="mp-dist">${Math.round(r.pct * 100)}%</span></li>`).join('')}
+        <span class="mp-dist">${round0(r.pct * 100)}%</span></li>`).join('')}
     </ul>
     <div class="mp-hint">직선거리 기준의 근사값(500m 격자)입니다. 실제 보행·차량 접근성과는 다를 수 있습니다.<br>
       어느 학교든 ${fmtR(GAP_RESIDENTIAL_M)} 밖인 격자(큰 산 등 약 ${(g.excluded * A).toFixed(0)}㎢)는 사람이 살지 않는 곳으로 보고 뺐습니다(추정). 한강·작은 산은 일부 남아 있고, 인구 수는 반영하지 않았습니다.</div>`;
@@ -3625,17 +3631,17 @@ function aggColumns() {
   if (activeLayer === 'size') return [
     { key: 'cls', label: '학급 수', val: st => st.cls },
     { key: 'stu', label: '학생 수', val: st => st.stu },
-    { key: 'avg', label: '학급당 학생', val: st => st.cls ? Math.round(st.stu / st.cls * 10) / 10 : 0 }];
+    { key: 'avg', label: '학급당 학생', val: st => st.cls ? round1(st.stu / st.cls) : 0 }];
   if (activeLayer === 'site') return [
     { key: 'sN', label: '값 있는 학교', val: st => st.sN },
     { key: 'sA', label: '교지(㎡, 배분)', val: st => Math.round(st.sA), num: true },
     { key: 'sS', label: '학생', val: st => st.sS, num: true },
-    { key: 'sP', label: '1인당(㎡)', val: st => st.sS ? Math.round(st.sA / st.sS * 10) / 10 : 0 }];
+    { key: 'sP', label: '1인당(㎡)', val: st => st.sS ? round1(st.sA / st.sS) : 0 }];
   if (activeLayer === 'trend') return [
     { key: 'tN', label: '비교 가능', val: st => st.tN },
     { key: 'tA', label: `${trendY0()}년 학생`, val: st => st.tA, num: true },
     { key: 'tB', label: `${trendY1()}년 학생`, val: st => st.tB, num: true },
-    { key: 'tR', label: '증감률(%)', val: st => st.tA ? Math.round((st.tB - st.tA) / st.tA * 1000) / 10 : 0, pct: true }];
+    { key: 'tR', label: '증감률(%)', val: st => st.tA ? round1((st.tB - st.tA) / st.tA * 100) : 0, pct: true }];
   if (activeLayer === 'change') return [
     { key: 'comp', label: '비교 가능', val: st => st.comp },
     { key: 'gain', label: '새로 개방', val: st => st.gain },
@@ -3671,9 +3677,9 @@ function aggRows() {
   cols.forEach(c => { total[c.key] = 0; });
   rows.forEach(r => { total.total += r.total; total.open += r.open; total.base += r.base; cols.forEach(c => { total[c.key] += r[c.key]; }); });
   total.pct = total.base ? total.open / total.base : 0;
-  if (isSize) total.avg = total.cls ? Math.round(total.stu / total.cls * 10) / 10 : 0;   // 평균은 합이 아니라 다시 계산
-  if (isSite) total.sP = total.sS ? Math.round(total.sA / total.sS * 10) / 10 : 0;   // 1인당도 합계로 다시 계산
-  if (isTrend) total.tR = total.tA ? Math.round((total.tB - total.tA) / total.tA * 1000) / 10 : 0;   // 증감률도 합계로 다시 계산
+  if (isSize) total.avg = total.cls ? round1(total.stu / total.cls) : 0;   // 평균은 합이 아니라 다시 계산
+  if (isSite) total.sP = total.sS ? round1(total.sA / total.sS) : 0;   // 1인당도 합계로 다시 계산
+  if (isTrend) total.tR = total.tA ? round1((total.tB - total.tA) / total.tA * 100) : 0;   // 증감률도 합계로 다시 계산
   return { rows, total, cols, countOnly, isSize, isChange, isTrend, sortCol, dir };
 }
 function setAggSort(col) {
@@ -3685,12 +3691,12 @@ function setAggSort(col) {
 function renderAgg() {
   const { rows, total, cols, countOnly, isSize, isChange, isTrend, sortCol, dir } = aggRows();
   document.getElementById('aggTitle').textContent =
-    `${unitLabel()}별 ${isSize ? '학생·학급' : activeLayer === 'site' ? '학생 1인당 교지' : isTrend ? `학생 수 추이(${trendY0()}→${trendY1()})` : isChange ? `개방 변화(${prevYear()}→${DISCLOSURE_YEAR})` : '시설 개방 현황'} 집계 (${total.total}개교)`;
+    `${unitLabel()}별 ${isSize ? '학생·학급' : activeLayer === 'site' ? '학생 1인당 교지' : isTrend ? `학생 수 추이(${trendY0()}→${trendY1()})` : isChange ? `개방 변화(${prevYear()}→${DISCLOSURE_YEAR})` : '시설 개방 현황'} 집계 (${fmtNum(total.total)}개교)`;
   const arrow = c => sortCol === c ? (dir === 'asc' ? ' ▲' : ' ▼') : '';
   const th = (c, label) => `<th data-col="${c}">${label}${arrow(c)}</th>`;
-  const line = r => `<td>${r.g}</td><td>${r.total}</td>` +
-    (countOnly ? '' : `<td>${r.open}</td><td>${Math.round(r.pct * 100)}%</td>`) +
-    cols.map(c => `<td>${isSize || c.num ? fmtNum(r[c.key]) : c.pct ? fmtPct(r[c.key] / 100) : c.signed ? fmtSigned(r[c.key]) : r[c.key]}</td>`).join('');
+  const line = r => `<td>${r.g}</td><td>${fmtNum(r.total)}</td>` +
+    (countOnly ? '' : `<td>${fmtNum(r.open)}</td><td>${round0(r.pct * 100)}%</td>`) +
+    cols.map(c => `<td>${isSize || c.num ? fmtNum(r[c.key]) : c.pct ? fmtPct(r[c.key] / 100) : c.signed ? fmtSigned(r[c.key]) : fmtNum(r[c.key])}</td>`).join('');
   document.getElementById('aggBody').innerHTML = `
     <table class="agg-table">
       <thead><tr>${th('g', unitLabel())}${th('total', '학교 수')}${countOnly ? '' : th('open', facRateName() + '개방 학교') + th('pct', facRateName() + '개방률')}
@@ -3708,7 +3714,7 @@ function renderAgg() {
 function aggExportTable() {
   const { rows, total, cols, countOnly } = aggRows();
   const head = [unitLabel(), '학교 수', ...(countOnly ? [] : [facRateName() + '개방 학교', facRateName() + '개방률(%)']), ...cols.map(c => c.label)];
-  const line = r => [r.g, r.total, ...(countOnly ? [] : [r.open, Math.round(r.pct * 100)]), ...cols.map(c => r[c.key])];
+  const line = r => [r.g, r.total, ...(countOnly ? [] : [r.open, round0(r.pct * 100)]), ...cols.map(c => r[c.key])];
   const DEC = ['avg', 'sP', 'tR'];
   const fmt = [null, 'int', ...(countOnly ? [] : ['int', 'int']), ...cols.map(c => DEC.includes(c.key) ? 'dec' : c.signed ? 'signed' : 'int')];
   return { head, rows: rows.map(line), total: line(total), fmt, groups: rows.length, schools: total.total };
@@ -3723,7 +3729,7 @@ function aggHintText() {
   const isSize = activeLayer === 'size', isTrend = activeLayer === 'trend', isChange = activeLayer === 'change';
   return (activeLayer === 'site' ? '교지는 교사대지+체육장(학교알리미 공시)입니다. 땅을 함께 쓰는 학교는 묶음의 1인당 면적을 학생 수만큼 나눠 담아(배분) 두 번 세지 않습니다. 학생수가 없거나 공시 제외인 학교는 빠집니다. '
     : isTrend ? `${trendY0()}·${trendY1()}년 학생 수가 모두 있는 학교(비교 가능)만 합쳐 계산한 증감률입니다(학교별 증감률의 평균이 아님). 최근 3년은 학교알리미 OpenAPI, 그 앞의 해는 서울 열린데이터광장(학교알리미 공시) 자료입니다. `
-    : isSize ? `학교알리미 공시 기준 합계입니다(학급수는 특수학급 포함). 공시 제외·미조회 학교는 합계에서 빠집니다${(() => { const n = SCHOOLS.filter(s => matchesNonDistrictFilters(s) && stuOf(s) == null).length; return n ? ` (현재 조건에서 ${n}개교)` : ''; })()}. `
+    : isSize ? `학교알리미 공시 기준 합계입니다(학급수는 특수학급 포함). 공시 제외·미조회 학교는 합계에서 빠집니다${(() => { const n = SCHOOLS.filter(s => matchesNonDistrictFilters(s) && stuOf(s) == null).length; return n ? ` (현재 조건에서 ${fmtNum(n)}개교)` : ''; })()}. `
     : isChange ? `${prevYear()}·${DISCLOSURE_YEAR}년 공시가 모두 있는 학교만 비교합니다(비교 가능). 새로 개방·개방 중단은 ${activeFacilities.size ? '고른 시설' : '시설 6종'} 중 하나라도 개방했는지를 학교 단위로, "○○ 순"은 그 시설을 새로 연 학교 수 − 닫은 학교 수입니다. `
     : '시설 열은 해당 시설을 개방하는 학교 수입니다. ') + '현재 학교급·시설·검색 조건이 반영됩니다.';
 }
@@ -3776,7 +3782,7 @@ function bindUi() {
 
   document.getElementById('copyBtn').onclick = async () => {
     const ok = await copyText(selectionText(document.getElementById('copyFmt').value));
-    toast(ok ? `${checked.size}개교 학교명을 복사했습니다.` : '복사하지 못했습니다. 브라우저 권한을 확인해 주세요.');
+    toast(ok ? `${fmtNum(checked.size)}개교 학교명을 복사했습니다.` : '복사하지 못했습니다. 브라우저 권한을 확인해 주세요.');
   };
   document.getElementById('selXlsxBtn').onclick = () => downloadXlsx(checkedSchools(), '선택한 학교', '서울학교공간지도_선택학교');
   document.getElementById('selCsvBtn').onclick = () =>
@@ -3859,7 +3865,7 @@ function renderDisclosureDataPanel() {
   html += nameList('좌표가 없는 학교', noCoord.map(s => `${s.name}(${s.found})`), 'coords.js에 없는 학교입니다. 좌표수집기.html(전국초중등학교위치표준데이터)로 채우고, 거기서도 못 찾은 학교는 corrections.js의 COORD_OVERRIDES에 사람이 확인해 넣으세요.', false);
   html += nameList('교육지원청 미분류 학교', unassigned, 'data/corrections.js의 OFFICE_OF_DISTRICT에 자치구를 추가하세요.', true);
   html += `<div class="mp-sub-title">연락처 주소 대조</div>`;
-  html += `<div class="data-list">연락처 등록: <b>${SCHOOLS.length - noContact.length}</b>/${SCHOOLS.length}개교${typeof CONTACT_DATA_DATE !== 'undefined' ? ` · NEIS 수집일 ${esc(CONTACT_DATA_DATE)}` : ''}</div>`;
+  html += `<div class="data-list">연락처 등록: <b>${SCHOOLS.length - noContact.length}</b>/${fmtNum(SCHOOLS.length)}개교${typeof CONTACT_DATA_DATE !== 'undefined' ? ` · NEIS 수집일 ${esc(CONTACT_DATA_DATE)}` : ''}</div>`;
   html += nameList('연락처가 없는 학교', noContact, '연락처수집기.html을 다시 실행하고, 매칭 실패·동명 후보는 corrections.js의 CONTACT_ALIAS로 해결하세요.', true);
   html += nameList('자치구 주소 불일치(공시 자치구 vs NEIS 연락처 주소)', addrDistrictIssues, '두 공식자료(학교알리미 공시·NEIS)의 자치구가 다릅니다. 학교가 이전했는데 한쪽 자료만 갱신되지 않은 경우일 수 있어 확인이 필요합니다. 이전이 맞으면 data/corrections.js의 VERIFIED_DISTRICT_MOVES에 추가하세요.', true);
   html += `<div class="mp-sub-title">공시 제외</div>`;
@@ -3971,7 +3977,7 @@ function helpHtml() {
   return `
     <h3>이 지도는</h3>
     <ul>
-      <li>서울 학교 ${fmtNum(SCHOOLS.length)}곳의 <b>공간</b>(시설 개방·학생 수·학교 부지)을 지도와 목록으로 봅니다. 기준 자료는 학교알리미 ${y} 공시입니다.</li>
+      <li>서울 학교 ${fmtNum(SCHOOLS.length)}곳의 <b>공간</b>(시설 개방·학생 수·학교 부지(교지))을 지도와 목록으로 봅니다. 기준 자료는 학교알리미 ${y} 공시입니다.</li>
       <li><b>값과 비교 기준</b>(같은 구·같은 학교급, 서울 전체, 전년)만 보여 줍니다. 좋다·나쁘다, 많다·부족하다는 판정은 하지 않습니다. 색도 방향과 크기만 나타냅니다.</li>
       <li><b>공시값은 실제 이용 가능 여부와 다를 수 있습니다.</b> 이용 조건·절차는 학교 카드의 연락처로 학교에 확인해 주세요.</li>
     </ul>
