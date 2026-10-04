@@ -8,6 +8,9 @@ image: alpine:latest
 
 pages:
   stage: deploy
+  # gitlab.aigov.go.kr의 인스턴스 러너(운영자 제공, 2026-10-05 확인)는 이 태그가 붙은 작업만 받는다. 없으면 "러너 없음"으로 멈춤
+  tags:
+    - security-deploy
   script:
     - mkdir -p public/data
     - cp 서울학교공간지도/서울학교공간지도.html public/index.html
