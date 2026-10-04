@@ -4037,8 +4037,10 @@ async function boot() {
   const fromHash = readHashState();   // 공유 링크(#…)로 열었으면 그 탭·조건으로 시작
   renderScopeNote();
   renderFilterChips();
-  // 데이터 점검은 관리자용이라 주소 끝에 ?admin을 붙여 열었을 때만 버튼을 보인다(2026-10-02)
-  document.getElementById('toolData').hidden = !new URLSearchParams(location.search).has('admin');
+  // 데이터 점검은 관리자용이라 주소 끝에 ?admin을 붙여 열었을 때만 버튼을 보인다(2026-10-02).
+  // 공개본(GitHub Pages)에서는 공개본_만들기.js가 ADMIN_PANEL을 false로 바꿔 ?admin을 붙여도 안 보이게 한다(2026-10-05)
+  const ADMIN_PANEL = false;   // 공개본: 점검 패널 끔(공개본_만들기.js)
+  document.getElementById('toolData').hidden = !(ADMIN_PANEL && new URLSearchParams(location.search).has('admin'));
   document.getElementById('loading').hidden = true;
   bindUi();
   renderTabFilters();   // 탭 전용 골라 보기 묶음(처음 탭 = 시설 개방)
