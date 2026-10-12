@@ -305,6 +305,9 @@
     background: rgba(255,255,255,0.92); border: 1px solid var(--line); border-radius: 6px;
     padding: 3px 8px; font-size: 11.5px; font-weight: 700; color: var(--ink);
     white-space: nowrap; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    /* 2026-10-12: 카카오 xAnchor 0.5는 라벨을 만들 때(글자가 들어가기 전 빈 상자) 크기로 계산돼 모든 라벨이 폭의 절반만큼
+       오른쪽에 그려졌다(30~60px). 기준점을 왼쪽 위(0, 0)로 두고 가운데 맞춤은 여기서 한다. */
+    transform: translate(-50%, -50%);
   }
 
   .legend {
@@ -1797,7 +1800,7 @@ function buildDistrictPolygons() {
     districtLabels[d.name] = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(lp[0], lp[1]),
       content: makeLabelEl('d:' + d.name, () => setGroup(d.name)),
-      xAnchor: 0.5, yAnchor: 0.5, zIndex: 30   // 교육지원청 핀(zIndex 20)보다 위 — 숫자 라벨이 가려지지 않게
+      xAnchor: 0, yAnchor: 0, zIndex: 30   // 교육지원청 핀(zIndex 20)보다 위 — 숫자 라벨이 가려지지 않게. 가운데 맞춤은 CSS(.district-label transform)
     });
   });
   // 교육지원청 라벨: 소속 자치구 중심점들의 평균 위치
@@ -1809,21 +1812,22 @@ function buildDistrictPolygons() {
     officeLabels[o] = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(lat, lng),
       content: makeLabelEl('o:' + o, () => setGroup(o)),
-      xAnchor: 0.5, yAnchor: 0.5, zIndex: 30
+      xAnchor: 0, yAnchor: 0, zIndex: 30
     });
   });
 }
 
-// 자치구 라벨 자리를 중심점 대신 정한 곳([위도, 경도], 그 구 안). 2026-10-12: 송파구는 중심점이 서울 오른쪽 아래 끝이라
-// 오른쪽 아래 범례에 라벨이 가려져서 왼쪽으로 옮김(오른쪽 끝을 잠실 자리 이하로). 같은 날 라벨이 교육지원청 핀을 덮는 곳
-// (영등포구↔남부, 송파구↔강동송파, 동대문구↔동부)과 붙어 보이는 성동구↔중구 라벨을, 다섯 탭 가운데 가장 긴 라벨 폭 기준으로
-// 핀·다른 라벨과 안 겹치는 그 구 안의 중심점에서 가장 가까운 자리로 옮김(서울 전체가 보이는 기본 확대, 1px ≈ 28m 기준 계산).
+// 자치구 라벨 자리를 중심점 대신 정한 곳([위도, 경도], 그 구 안). 2026-10-12: 라벨 가운데 맞춤을 고친 뒤 공개 주소의 실제 카카오 지도
+// (8단계 — 서울 전체가 보이는 단계, 1px ≈ 31m)에서 다섯 탭의 실제 라벨 폭으로 교육지원청 핀·본청·다른 라벨과 겹치는 구만,
+// 그 구 안에서 중심점에 가장 가까운 빈 자리로 옮김(2~35px). 송파구는 오른쪽 아래 범례 때문에 오른쪽으로 더 가지 않게.
 // 교육지원청 라벨 위치(_cLat·_cLng 평균)는 그대로.
 const LABEL_POS = {
-  송파구: [37.4986, 127.0975],
-  영등포구: [37.5270, 126.9125],
-  동대문구: [37.5717, 127.0569],
-  성동구: [37.5488, 127.0379],
+  관악구: [37.4653, 126.9457],   // 금천구 라벨
+  동작구: [37.4945, 126.9490],   // 동작관악 핀
+  영등포구: [37.5106, 126.9088], // 남부 핀
+  동대문구: [37.5887, 127.0453], // 동부 핀
+  성동구: [37.5481, 127.0358],   // 중구 라벨
+  송파구: [37.4970, 127.1227],   // 범례 쪽 한계
 };
 function refreshDistrictPolygons() {
   const stats = computeGroupStats();
