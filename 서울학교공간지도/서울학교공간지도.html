@@ -52,7 +52,7 @@
   }
   .app { display: grid; grid-template-columns: 460px 1fr; grid-template-rows: auto 1fr; height: 100vh; }
 
-  /* ---------- 상단 통계 바 (데이터 전체 기준, 필터와 무관) ---------- */
+  /* ---------- 상단 통계 바 (조건 없으면 서울 전체, 늘 적용 조건이 걸리면 그 값 + 작은 "서울 ○○") ---------- */
   .topbar {
     grid-column: 1 / -1; display: flex; gap: 0; align-items: stretch;
     background: var(--panel); border-bottom: 1px solid var(--line); z-index: 20;
@@ -68,6 +68,7 @@
   }
   .topbar .stat .num { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .topbar .stat .label { font-size: 12px; color: var(--ink-soft); }
+  .topbar .stat .seoul { display: block; font-size: 10.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .topbar .stat.total .num { color: var(--ink); }
   .topbar .stat.open .num { color: var(--open); }
   .topbar .stat.closed .num { color: var(--closed); }
@@ -1286,54 +1287,67 @@ function renderTopBar() {
   const coordRow = document.getElementById('coordIssueRow');
   coordRow.hidden = !(noCoordTotal + coordIssueTotal);
   if (coordRow.hidden && coordIssueOnly) { coordIssueOnly = false; document.getElementById('coordIssueToggle').checked = false; }
-  let head;
-  // 상단 통계는 필터와 무관한 서울 전체 기준이라, 첫 칸에 그렇게 밝힌다(2026-10-03 — 고등학교만 골라도 −4.0% 등 전체 값이 보여 헷갈렸음)
-  // 2026-10-12 패널 정리 ①: 제목 아래 안내 줄을 없애면서 "○○년 공시"를 이 칸으로 옮김(원자료 설명·수집일은 마우스를 올리면)
+  // 2026-10-14(외부 검토 후속 2번): 늘 적용 조건(자치구·교육지원청·학교급·설립·검색)이 걸리면 칸마다 "지금 조건 값"을 크게,
+  // 그 아래 작게 "서울 ○○"(비교 기준). 조건이 없으면 예전처럼 서울 전체만. 탭 전용 골라 보기(시설 칩·구간 등)는 지도 숫자·집계표처럼
+  // 걸지 않는다(걸면 "체육관 개방 학교만"의 개방이 늘 100%가 됨) — filteredSchools(true).
+  // 2026-10-12 패널 정리 ①: "○○년 공시"는 첫 칸(원자료 설명·수집일은 마우스를 올리면).
   const year = typeof DISCLOSURE_YEAR !== 'undefined' ? DISCLOSURE_YEAR : '?';
   const date = typeof DISCLOSURE_DATA_DATE !== 'undefined' ? DISCLOSURE_DATA_DATE : '?';
-  const totalCell = `<div class="stat total" title="상단 숫자는 필터·칩과 관계없이 서울 전체 학교 기준입니다.\n${esc(SRC.scopeTitle)}\n국립·공립·사립 ${fmtNum(total)}개교 · 수집일 ${esc(date)}"><span class="num">${fmtNum(total)}</span><span class="label">서울 전체<span style="display:block;font-size:9.5px;">${year} 공시 · 필터와 무관</span></span></div>`;
-  if (activeLayer === 'size') {
-    const w = SCHOOLS.filter(s => stuOf(s) != null);
-    const sc = SCHOOLS.reduce((a, s) => a + (clsOf(s) || 0), 0), ss = SCHOOLS.reduce((a, s) => a + (stuOf(s) || 0), 0);
-    head = `${totalCell}
-      <div class="stat"><span class="num" style="color:#23807A">${fmtNum(sc)}</span><span class="label">학급 수</span></div>
-      <div class="stat"><span class="num" style="color:#23807A">${fmtNum(ss)}</span><span class="label">학생 수<span style="display:block;font-size:9.5px;">(${fmtNum(w.length)}개교 집계)</span></span></div>`;
-  } else if (activeLayer === 'trend') {
-    // 필터와 무관하게 전체 기준. 합계는 두 해 모두 값이 있는 학교만
-    const t = trendSum(SCHOOLS), na = SCHOOLS.filter(s => trendRate(s) == null).length;
-    const st = (n, label) => `<div class="stat"><span class="num" style="color:#2B5C8A">${n}</span><span class="label">${label}</span></div>`;
-    head = `${totalCell}
-      ${st(fmtNum(t.a), `${trendY0()}년 학생<span style="display:block;font-size:9.5px;">(비교 가능 ${fmtNum(t.n)}개교 합계)</span>`)}
-      ${st(fmtNum(t.b), `${trendY1()}년 학생`)}
-      ${st(fmtPct(t.rate), '증감률')}
-      <div class="stat" data-pick="trend:na"><span class="num" style="color:var(--ink-soft)">${na}</span><span class="label">비교 불가</span></div>`;
-  } else if (activeLayer === 'site') {
-    // 필터와 무관하게 전체 기준. 공동사용 묶음은 배분해 두 번 세지 않는다
-    const t = siteSum(SCHOOLS), na = SCHOOLS.filter(s => sitePer(s) == null).length;
-    const shared = SCHOOLS.filter(s => (siteInfo(s) || {}).group).length;
-    const st = (n, label) => `<div class="stat"><span class="num" style="color:#8E6A28">${n}</span><span class="label">${label}</span></div>`;
-    head = `${totalCell}
-      ${st(fmtPer(t.per), `학생 1인당 교지<span style="display:block;font-size:9.5px;">(${fmtNum(t.n)}개교 합계)</span>`)}
-      ${st((t.area / 1e6).toFixed(2) + '㎢', '교지 합계')}
-      ${st(shared, '땅을 함께 쓰는 학교').replace('<div class="stat"', '<div class="stat" data-pick="site:shared"')}
-      <div class="stat" data-pick="site:na"><span class="num" style="color:var(--ink-soft)">${na}</span><span class="label">비교 불가</span></div>`;
-  } else if (activeLayer === 'change') {
-    // 상단 통계는 필터와 무관하게 시설 6종 전체 기준
-    const c = k => SCHOOLS.filter(s => changeKind(s, FACILITIES) === k).length;
-    const g = c('gain'), l = c('loss');
-    const st = (n, label, color) => `<div class="stat"><span class="num" style="color:${color}">${n}</span><span class="label">${label}</span></div>`;
-    head = `${totalCell}
-      ${st(g, '새로 개방', CHANGE_KINDS.gain.color)}${st(l, '개방 중단', CHANGE_KINDS.loss.color)}
-      ${st(fmtSigned(g - l), `순변화<span style="display:block;font-size:9.5px;">(${prevYear()}→${DISCLOSURE_YEAR})</span>`, 'var(--ink)')}
-      ${st(c('na'), '비교 불가', 'var(--ink-soft)')}`;
-  } else {
-    const openTotal = SCHOOLS.filter(s => !isSchoolClosed(s) && FACILITIES.some(f => s.fac[f] === '유')).length;
-    const exTotal = SCHOOLS.filter(s => s.ex).length;   // 공시 제외(개방 공시 보기에만 있음)
-    head = `${totalCell}
-      <div class="stat open"><span class="num">${fmtNum(openTotal)}</span><span class="label">개방</span></div>
-      <div class="stat closed"><span class="num">${fmtNum(total - openTotal - exTotal)}</span><span class="label">미개방</span></div>
-      ${exTotal ? `<div class="stat"><span class="num" style="color:var(--ink-soft)">${exTotal}</span><span class="label">공시 제외</span></div>` : ''}`;
-  }
+  const filtered = condItems().some(i => !i.tab);
+  const cur = filtered ? filteredSchools(true) : SCHOOLS;
+  const small = t => `<span style="display:block;font-size:9.5px;">${t}</span>`;
+  const seoulEx = SCHOOLS.filter(s => s.ex).length;
+  // 칸 = { v(크게), label, note(작은 줄), color, cls, pick } — list를 받아 그 학교들로 계산
+  const cellsOf = list => {
+    if (activeLayer === 'size') {
+      const w = list.filter(s => stuOf(s) != null);
+      return [
+        { v: fmtNum(list.reduce((a, s) => a + (clsOf(s) || 0), 0)), label: '학급 수', color: '#23807A' },
+        { v: fmtNum(list.reduce((a, s) => a + (stuOf(s) || 0), 0)), label: '학생 수', note: `(${fmtNum(w.length)}개교 집계)`, color: '#23807A' }];
+    }
+    if (activeLayer === 'trend') {
+      // 합계는 두 해 모두 값이 있는 학교만
+      const t = trendSum(list), na = list.filter(s => trendRate(s) == null).length, c = '#2B5C8A';
+      return [
+        { v: fmtNum(t.a), label: `${trendY0()}년 학생`, note: `(비교 가능 ${fmtNum(t.n)}개교 합계)`, color: c },
+        { v: fmtNum(t.b), label: `${trendY1()}년 학생`, color: c },
+        { v: fmtPct(t.rate), label: '증감률', color: c },
+        { v: fmtNum(na), label: '비교 불가', color: 'var(--ink-soft)', pick: 'trend:na' }];
+    }
+    if (activeLayer === 'site') {
+      // 공동사용 묶음은 배분해 두 번 세지 않는다
+      const t = siteSum(list), na = list.filter(s => sitePer(s) == null).length, c = '#8E6A28';
+      return [
+        { v: fmtPer(t.per), label: '학생 1인당 교지', note: `(${fmtNum(t.n)}개교 합계)`, color: c },
+        { v: (t.area / 1e6).toFixed(2) + '㎢', label: '교지 합계', color: c },
+        { v: fmtNum(list.filter(s => (siteInfo(s) || {}).group).length), label: '땅을 함께 쓰는 학교', color: c, pick: 'site:shared' },
+        { v: fmtNum(na), label: '비교 불가', color: 'var(--ink-soft)', pick: 'site:na' }];
+    }
+    if (activeLayer === 'change') {
+      // 시설 6종 기준(비교 시설 칩과 무관)
+      const n = k => list.filter(s => changeKind(s, FACILITIES) === k).length;
+      const g = n('gain'), l = n('loss');
+      return [
+        { v: fmtNum(g), label: '새로 개방', color: CHANGE_KINDS.gain.color },
+        { v: fmtNum(l), label: '개방 중단', color: CHANGE_KINDS.loss.color },
+        { v: fmtSigned(g - l), label: '순변화', note: `(${prevYear()}→${DISCLOSURE_YEAR})`, color: 'var(--ink)' },
+        { v: fmtNum(n('na')), label: '비교 불가', color: 'var(--ink-soft)' }];
+    }
+    const open = list.filter(s => !isSchoolClosed(s) && FACILITIES.some(f => s.fac[f] === '유')).length;
+    const ex = list.filter(s => s.ex).length;   // 공시 제외(개방 공시 보기에만 있음)
+    return [
+      { v: fmtNum(open), label: '개방', cls: 'open' },
+      { v: fmtNum(list.length - open - ex), label: '미개방', cls: 'closed' },
+      ...(seoulEx ? [{ v: fmtNum(ex), label: '공시 제외', color: 'var(--ink-soft)' }] : [])];   // 칸 수는 서울 기준으로 고정(휴대폰 TOP_MOBILE_KEEP 순번)
+  };
+  const now = cellsOf(cur), seoul = filtered ? cellsOf(SCHOOLS) : null;
+  const tip = `${esc(SRC.scopeTitle)}\n국립·공립·사립 ${fmtNum(total)}개교 · 수집일 ${esc(date)}`;
+  const totalCell = filtered
+    ? `<div class="stat total" title="큰 숫자 = 지금 조건(자치구·학교급·설립·검색)의 학교, 작은 숫자 = 서울 전체.\n탭에서 고른 칩은 반영하지 않습니다.\n${tip}"><span class="num">${fmtNum(cur.length)}</span><span class="label">지금 조건${small(`서울 ${fmtNum(total)} · ${year} 공시`)}</span></div>`
+    : `<div class="stat total" title="서울 전체 학교 기준입니다. 자치구·학교급 등 조건을 걸면 그 조건의 값이 크게, 서울 전체가 작게 보입니다.\n${tip}"><span class="num">${fmtNum(total)}</span><span class="label">서울 전체${small(`${year} 공시`)}</span></div>`;
+  const head = totalCell + now.map((c, i) => `<div class="stat${c.cls ? ' ' + c.cls : ''}"${c.pick ? ` data-pick="${c.pick}"` : ''}>`
+    + `<span class="num"${c.color ? ` style="color:${c.color}"` : ''}>${c.v}</span>`
+    + `<span class="label">${c.label}${c.note ? small(c.note) : ''}${seoul ? `<span class="seoul">서울 ${seoul[i].v}</span>` : ''}</span></div>`).join('');
   const bar = document.getElementById('topBar');
   bar.innerHTML = head + tail;
   // 휴대폰에서는 "서울 전체" + 탭별 핵심 두 칸만 보이고 나머지는 "더 보기"로 접는다(2026-10-03, 목적 검토 4번 — 3줄로 쌓여 지도를 가림)
@@ -2632,6 +2646,7 @@ function renderList() {
   // 목록 위 합계 한 줄(statLine)은 바로 위 조건별 요약과 같은 숫자라 2026-10-02 뺐다. 목록 학교 수만 조건 줄 앞에 붙인다.
   renderTableHead(schools);
   renderSortMenu();
+  renderTopBar();   // 상단 숫자도 늘 적용 조건을 따름(2026-10-14)
   renderCondLine(schools.length);
 
   if (schools.length === 0) {
@@ -4049,11 +4064,15 @@ function setDataPanel(on) {
 }
 
 // 모바일에서는 상단 통계 바가 여러 줄로 접히므로, 지도 영역 시작 위치를 그 높이에 맞춘다
-function fitMapTop() {
-  document.documentElement.style.setProperty('--topbar-h', document.getElementById('topBar').offsetHeight + 'px');
+let lastTopH = -1;
+function fitMapTop(force) {
+  const h = document.getElementById('topBar').offsetHeight;
+  if (h === lastTopH && force !== true) return;   // 상단 숫자는 목록을 그릴 때마다 다시 그려서, 높이가 바뀔 때만 지도 크기를 맞춤
+  lastTopH = h;
+  document.documentElement.style.setProperty('--topbar-h', h + 'px');
   if (mapAvailable) map.relayout();
 }
-window.addEventListener('resize', fitMapTop);
+window.addEventListener('resize', () => fitMapTop(true));
 
 // ---------------- 지금 화면을 링크로(2026-10-03, 목적 검토 6번) ----------------
 // 탭·늘 적용 조건·탭 전용 조건·비교 기간·검색·정렬·고른 학교를 주소 끝(#…)에 담는다. 받은 사람이 열면 같은 화면.
@@ -4151,7 +4170,7 @@ function helpHtml() {
     <p class="help-detail-lead">값은 같은 구·같은 학교급, 서울 전체, 전년과 나란히 보여 주며, 색은 방향과 크기만 나타냅니다. 교지는 교사대지+체육장이고 건물 면적이 아닙니다.</p>
     <h3>화면 읽는 법</h3>
     <ul>
-      <li><b>맨 위 숫자 줄</b>은 필터와 관계없이 늘 <b>서울 전체</b> 값입니다. 고른 조건의 값은 목록 위 조건 줄의 ${key('요약 ▾')} 과 목록에 있습니다.</li>
+      <li><b>맨 위 숫자 줄</b>은 조건이 없으면 <b>서울 전체</b> 값입니다. 자치구·학교급·설립·검색 조건을 걸면 그 조건의 값이 크게, 서울 전체가 아래 작게 나옵니다(탭 안에서 고른 칩은 반영하지 않음). 학교급별·시설별 합계는 조건 줄의 ${key('요약 ▾')} 에 있습니다.</li>
       <li><b>자치구·학교급·설립</b>은 어느 탭에서나 걸리는 조건입니다. 탭에서만 쓰는 조건(시설, 구간, 비교 기간 등)은 "○○ 탭에서 골라 보기"의 ${key('펼치기 ▾')}를 눌러 엽니다.</li>
       <li>지도를 <b>축소</b>하면 자치구(또는 교육지원청)별 색과 숫자가, <b>확대</b>하면 학교 핀과 묶음 원(숫자 = 학교 수)이 보입니다. 자치구 숫자는 그 구의 값이라, 탭에서 고른 칩은 반영되지 않습니다.</li>
       <li>학교 핀이나 목록의 학교를 누르면 <b>학교 카드</b>가 열립니다. 지금 탭과 관련된 내용이 펼쳐져 있습니다.</li>
@@ -4219,7 +4238,7 @@ async function boot() {
   updateLegend();
   updateSelBar();
   renderRadiusResult();
-  fitMapTop();
+  fitMapTop(true);
   if (fromHash.layer) setLayer(fromHash.layer);
   if (mapAvailable && (activeGroupSet().size || activeLevels.size || searchTerm)) { updateMapViewMode(); syncOfficeCard(); focusMap(filteredSchools()); }
   if (fromHash.sel) selectSchool(SCHOOL_BY_NAME[fromHash.sel]);
