@@ -197,10 +197,14 @@
   .tab-filters.folded > :not(.tf-title) { display: none !important; }
   .summary-panel.folded { display: none; }
   .tf-switch { padding: 4px 12px 2px; }
-  /* 조건 줄(2026-10-12 패널 정리 ②③): 1줄 = 목록 수·늘 적용 조건(탭 전용 조건은 탭 상자 제목 옆에만),
+  /* 조건 줄(2026-10-12 패널 정리 ②③, 10-14 조건 칩): 1줄 = 목록 수·조건 칩(× 해제, 탭 전용은 점선),
      2줄 = 왼쪽 정렬(한 덩어리로 줄바꿈 안 됨)·오른쪽 "요약 ▾"(예전 따로 있던 조건별 요약 상자를 여기서 펼침) */
   .cond-line { padding: 6px 20px 2px; font-size: 12px; color: var(--ink-soft); line-height: 1.6; word-break: keep-all; border-top: 1px solid var(--line); }
   .cond-line b { color: var(--ink); font-weight: 600; }
+  .cond-chip { display: inline-flex; align-items: center; gap: 2px; margin: 1px 4px 1px 0; padding: 0 2px 0 7px; border: 1px solid #CBD3DE; border-radius: 999px; background: var(--brand-soft); color: var(--ink); font-weight: 600; line-height: 1.5; }
+  .cond-chip.tab { border-style: dashed; background: var(--panel); }
+  .cond-chip button { font: inherit; font-size: 13px; line-height: 1; padding: 0 4px; border: 0; background: none; color: var(--ink-soft); cursor: pointer; border-radius: 999px; }
+  .cond-chip button:hover { color: var(--brand); background: rgba(51,65,85,.1); }
   .cl-2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .cl-sort { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .link-btn { font-family: inherit; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid #CBD3DE; background: var(--panel); color: var(--brand); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
@@ -296,6 +300,7 @@
   .csv-btn:hover { border-color: var(--brand); color: var(--brand); }
 
   .empty { text-align: center; color: var(--ink-soft); font-size: 13px; padding: 40px 20px; }
+  .empty .link-btn { margin-top: 10px; font-size: 12px; padding: 4px 14px; }
 
   /* ---------- 지도 영역 ---------- */
   .map-wrap { position: relative; }
@@ -731,7 +736,7 @@
     <div id="map"></div>
     <div class="map-tools">
       <button type="button" class="map-tool" id="toolRadius">반경 검색</button>
-      <button type="button" class="map-tool" id="toolGap">반경 밖 지역</button>
+      <button type="button" class="map-tool" id="toolGap" title="개방 학교에서 일정 거리 밖인 영역(추정)">반경 밖 영역</button>
       <button type="button" class="map-tool" id="toolAgg">집계표</button>
       <button type="button" class="map-tool" id="toolData">데이터 점검</button>
     </div>
@@ -747,7 +752,7 @@
       <div id="radiusResult"></div>
     </div>
     <div class="map-panel" id="gapPanel">
-      <div class="mp-head"><b>반경 밖 지역</b><button type="button" class="mp-x" data-close="gap" aria-label="닫기">✕</button></div>
+      <div class="mp-head"><b>개방 학교 반경 밖 영역(추정)</b><button type="button" class="mp-x" data-close="gap" aria-label="닫기">✕</button></div>
       <div class="mp-chips" id="gapChips"></div>
       <div id="gapResult"></div>
     </div>
@@ -2063,39 +2068,83 @@ const SORT_OPTIONS = {
 };
 const SORT_COL_LABEL = { name: '학교명', district: '자치구', level: '학교급', cls: '학급', stu: '학생', avg: '학급당 학생', site: '1인당 교지', siteArea: '교지 면적', trend: '증감', t0: '첫 해 학생', t1: '마지막 해 학생' };
 // 목록 위 "조건" 한 줄: 늘 적용되는 조건 + 이 탭에서만 적용되는 조건 + 정렬. 숨은 조건 때문에 헷갈리지 않게(2026-10-02)
-function condParts() {
-  const common = [], tab = [];
-  if (activeDistricts.size) common.push([...activeDistricts].join('·'));
-  if (activeOffices.size) common.push([...activeOffices].map(o => o + '교육지원청').join('·'));
-  if (activeLevels.size) common.push([...activeLevels].map(levelLabel).join('·'));
-  if (activeFounds.size) common.push([...activeFounds].join('·'));
-  if (searchTerm) common.push(`"${searchTerm}" 검색`);
-  if (coordIssueOnly) common.push('좌표 확인 필요만');
+// 조건 하나 = { key(해제할 때 resetConds에 넘김), text, tab(이 탭에서만 걸림), fixed(해제할 수 없는 기준: 비교 기간 등) }
+function condItems() {
+  const it = [], add = (key, text, tab, fixed) => it.push({ key, text, tab: !!tab, fixed: !!fixed });
+  if (activeDistricts.size) add('group', [...activeDistricts].join('·'));
+  if (activeOffices.size) add('group', [...activeOffices].map(o => o + '교육지원청').join('·'));
+  if (activeLevels.size) add('level', [...activeLevels].map(levelLabel).join('·'));
+  if (activeFounds.size) add('found', [...activeFounds].join('·'));
+  if (searchTerm) add('search', `"${searchTerm}" 검색`);
+  if (coordIssueOnly) add('coord', '좌표 확인 필요만');
   if (activeLayer === 'facility') {
-    if (activeFacilities.size) tab.push([...activeFacilities].join(' 또는 ') + ' 개방');
-    if (onlyOpen) tab.push('개방 시설 있는 학교만');
+    if (activeFacilities.size) add('facility', [...activeFacilities].join(' 또는 ') + ' 개방', true);
+    if (onlyOpen) add('onlyOpen', '개방 시설 있는 학교만', true);
   }
   if (activeLayer === 'change') {
-    tab.push('비교 시설: ' + (activeFacilities.size ? [...activeFacilities].join('·') : '6종 모두'));
-    if (activeChanges.size) tab.push([...activeChanges].map(k => CHANGE_KINDS[k].label).join('·'));
+    if (activeFacilities.size) add('facility', '비교 시설: ' + [...activeFacilities].join('·'), true);
+    else add('', '비교 시설: 6종 모두', true, true);
+    if (activeChanges.size) add('change', [...activeChanges].map(k => CHANGE_KINDS[k].label).join('·'), true);
   }
-  if (activeLayer === 'trend' && hasTrendData()) tab.push(`비교 기간 ${trendY0()}→${trendY1()}`);
+  if (activeLayer === 'trend' && hasTrendData()) add('', `비교 기간 ${trendY0()}→${trendY1()}`, true, true);
   const L = BIN_LAYERS[activeLayer];
-  if (L && activeBins[activeLayer].size) tab.push((typeof L.sub === 'function' ? L.sub() : L.sub).replace(/\(.*\)/, '') + ' ' + [...activeBins[activeLayer]].sort((a, b) => a - b).map(i => L.label(L.bins()[i])).join('·'));
-  if (activeLayer === 'site' && activeSiteKinds.size) tab.push([...activeSiteKinds].map(k => SITE_KINDS[k]).join('·'));
-  if (activeLayer === 'trend' && activeTrendKinds.size) tab.push([...activeTrendKinds].map(k => TREND_KINDS[k]).join('·'));
-  return { common, tab };
+  if (L && activeBins[activeLayer].size) add('bin', (typeof L.sub === 'function' ? L.sub() : L.sub).replace(/\(.*\)/, '') + ' ' + [...activeBins[activeLayer]].sort((a, b) => a - b).map(i => L.label(L.bins()[i])).join('·'), true);
+  if (activeLayer === 'site' && activeSiteKinds.size) add('siteKind', [...activeSiteKinds].map(k => SITE_KINDS[k]).join('·'), true);
+  if (activeLayer === 'trend' && activeTrendKinds.size) add('trendKind', [...activeTrendKinds].map(k => TREND_KINDS[k]).join('·'), true);
+  return it;
+}
+function condParts() {
+  const it = condItems();
+  return { common: it.filter(i => !i.tab).map(i => i.text), tab: it.filter(i => i.tab).map(i => i.text) };
+}
+// 조건 해제(2026-10-14 외부 검토 후속): 조건 줄의 ×·"모두 해제"·0건 안내 버튼이 부른다. keys가 없으면 지금 걸린 조건 전부.
+// 상태만 바꾼 뒤 한 번에 다시 그린다(칩 setter를 하나씩 부르면 목록·지도를 여러 번 그림).
+function resetConds(keys) {
+  const ks = new Set(keys || condItems().filter(i => !i.fixed).map(i => i.key));
+  if (ks.has('group')) { activeDistricts.clear(); activeOffices.clear(); }
+  if (ks.has('level')) activeLevels.clear();
+  if (ks.has('found')) activeFounds.clear();
+  if (ks.has('search')) { searchTerm = ''; searchInput.value = ''; updateSearchClear(); }
+  if (ks.has('coord')) { coordIssueOnly = false; document.getElementById('coordIssueToggle').checked = false; }
+  if (ks.has('facility')) activeFacilities.clear();
+  if (ks.has('onlyOpen')) { onlyOpen = false; document.getElementById('onlyOpenToggle').checked = false; }
+  if (ks.has('change')) activeChanges.clear();
+  if (ks.has('bin') && activeBins[activeLayer]) activeBins[activeLayer].clear();
+  if (ks.has('siteKind')) activeSiteKinds.clear();
+  if (ks.has('trendKind')) activeTrendKinds.clear();
+  document.getElementById('districtSelectLabel').textContent = groupLabelText();
+  renderDistrictOptions();
+  renderFilterChips();
+  if (activeLayer === 'change') renderChangeChips();
+  renderLayerKindChips();
+  if (ks.has('facility')) refreshAllMarkerImages();
+  renderTopBar();
+  updateLegend();
+  if (ks.has('search')) { selectedSchool = null; setSelectedMarker(null); hidePlaceCard(); }
+  renderList();
+  syncMapMarkers();
+  updateMapViewMode();
+  syncOfficeCard();
+  if (radiusMode) renderRadiusResult();
+  focusMap(filteredSchools());
 }
 function sortLabel() {
   const sel = document.getElementById('sortSel');
   return sortColumn && sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text.replace(/^표 머리글: /, '') : '가나다';
 }
-// 2026-10-12 패널 정리: 탭 전용 조건은 탭 상자 제목 옆(renderTabFilterTitle)에만 두고 여기서는 뺀다.
+// 1줄: 목록 수 + 조건 칩. 2026-10-12에 탭 전용 조건을 여기서 뺐더니 체육관 칩을 골라도 "전체 학교"로 보여(외부 검토 10-14)
+// 다시 넣고, 조건마다 × 해제, 둘 이상이면 "모두 해제". 탭 전용 조건은 점선 칩(마우스를 올리면 "○○ 탭에서만").
 // 2줄: 정렬(한 덩어리) · "요약 ▾"(조건별 요약 상자 #summaryPanel을 펼침). 링크 복사는 "내려받기 ▾" 메뉴로 옮김.
 function renderCondLine(n) {
-  const { common } = condParts();
+  const items = condItems(), clearable = items.filter(i => !i.fixed).length;
+  const chips = items.map(i => {
+    const tip = i.tab ? ` title="${esc(LAYER_NAME[activeLayer])} 탭에서만 적용"` : '';
+    return `<span class="cond-chip${i.tab ? ' tab' : ''}"${tip}>${esc(i.text)}`
+      + (i.fixed ? '' : `<button type="button" data-clear="${i.key}" aria-label="${esc(i.text)} 조건 해제" title="이 조건 해제">×</button>`) + '</span>';
+  }).join('');
   const open = !document.getElementById('summaryPanel').classList.contains('folded');
-  document.getElementById('condLine').innerHTML = `<div class="cl-1">목록 <b>${fmtNum(n)}개교</b> · 조건: <b>${esc(common.length ? common.join(' · ') : '전체 학교')}</b></div>`
+  document.getElementById('condLine').innerHTML = `<div class="cl-1">목록 <b>${fmtNum(n)}개교</b> · 조건: ${chips || '<b>전체 학교</b>'}`
+    + (clearable >= 2 ? ` <button type="button" class="link-btn" data-clear="*">모두 해제</button>` : '') + '</div>'
     + `<div class="cl-2"><span class="cl-sort">정렬 <b>${esc(sortLabel())}</b></span>`
     + `<button type="button" class="link-btn" id="summaryBtn" aria-expanded="${open}" aria-controls="summaryPanel" title="지금 조건에 맞는 학교들의 학교급별·시설별 합계">${open ? '요약 접기 ▴' : '요약 ▾'}</button></div>`;
   renderTabFilterTitle();
@@ -2586,7 +2635,12 @@ function renderList() {
   renderCondLine(schools.length);
 
   if (schools.length === 0) {
-    list.innerHTML = `<tr><td colspan="${tableColCount()}" class="empty">조건에 맞는 학교가 없습니다.<br>필터를 조정해주세요.</td></tr>`;
+    // 0건(10-14): "필터를 조정해주세요"만으로는 무엇을 풀지 몰라서, 조건 줄의 ×를 안내하고 한 번에 푸는 버튼
+    const many = condItems().filter(i => !i.fixed).length;
+    list.innerHTML = `<tr><td colspan="${tableColCount()}" class="empty">조건에 맞는 학교가 없습니다.<br>`
+      + (many ? `위 조건 줄에서 ×로 하나씩 풀거나<br><button type="button" class="link-btn empty-reset">조건 모두 해제</button>` : '') + '</td></tr>';
+    const rb = list.querySelector('.empty-reset');
+    if (rb) rb.onclick = () => resetConds();
     return;
   }
   list.innerHTML = '';
@@ -3138,7 +3192,7 @@ function renderPlaceCard() {
   if (c && c.note) note += (note ? '<br>' : '') + esc(c.note);
   if (stt) {
     const facWarn = (stt.kind === '휴교' || stt.kind === '공사 중') && facilitySummary(s)
-      ? '<br><b>학교알리미 공시에는 개방으로 되어 있으나 ' + (stt.kind === '휴교' ? '휴교 중이라 실제 이용이 어려워 지도·집계·반경 밖 지역 보기에서는 닫힌 것으로 처리했습니다.' : '공사 중이라 실제 이용이 제한될 수 있습니다.') + '</b>' : '';
+      ? '<br><b>학교알리미 공시에는 개방으로 되어 있으나 ' + (stt.kind === '휴교' ? '휴교 중이라 실제 이용이 어려워 지도·집계·반경 밖 영역 보기에서는 닫힌 것으로 처리했습니다.' : '공사 중이라 실제 이용이 제한될 수 있습니다.') + '</b>' : '';
     // 근거·상세 설명은 길어서 기본은 접어 두고(요약: 상태 칩·아래 학급·학생 줄), 필요할 때만 펼쳐서 본다(2026-09-22).
     stNote = '<b>' + esc(stt.kind) + '</b>'
       + '<details class="pc-detail"><summary>자세히·근거 보기</summary><div class="pc-detail-body">' + esc(stt.detail) + facWarn
@@ -3250,6 +3304,7 @@ function setLayer(id) {
   renderTabFilters();
   if (sortColumn && !sortFitsLayer(sortColumn, id)) sortColumn = null;
   renderTrendPeriod();
+  renderListNote();
   if (cardSchool) renderPlaceCard();
   renderTopBar();
   refreshAllMarkerImages();
@@ -3361,12 +3416,24 @@ function setChange(label) {
 }
 // 목록 바로 위 작은 글씨(2026-10-12 패널 정리 ①): 제목 아래 회색 안내 상자를 없애고 원칙 문구만 여기 늘 보이게.
 // "○○년 공시"·개교 수는 상단 첫 칸, 원자료 설명·수집일은 상단 첫 칸과 이 줄에 마우스를 올리면(학교 카드 맨 아래에도 있음).
+// 2026-10-14: 탭마다 그 탭 값에 맞는 주의 한 줄(예전엔 학생·교지 탭에도 "이용 가능 여부" 문구가 나왔음). setLayer에서도 부름.
 function renderListNote() {
   const el = document.getElementById('listNote');
   const year = typeof DISCLOSURE_YEAR !== 'undefined' ? DISCLOSURE_YEAR : '?';
   const date = typeof DISCLOSURE_DATA_DATE !== 'undefined' ? DISCLOSURE_DATA_DATE : '?';
-  el.textContent = `학교알리미 ${year} 공시값은 실제 이용 가능 여부와 다를 수 있습니다.`;
-  el.title = `${SRC.scopeTitle}\n국립·공립·사립 ${fmtNum(SCHOOLS.length)}개교 · 수집일 ${date}`;
+  const facTitle = `${SRC.scopeTitle}\n국립·공립·사립 ${fmtNum(SCHOOLS.length)}개교 · 수집일 ${date}`;
+  const note = {
+    facility: [`학교알리미 ${year} 공시값은 실제 이용 가능 여부와 다를 수 있습니다.`, facTitle],
+    change: [`${prevYear()}·${year} 공시값끼리 비교합니다. 공시 변화는 실제 개방 변화와 다를 수 있습니다.`, facTitle],
+    size: ['학급·학생 수는 학교알리미 공시 시점 값입니다. 휴교·공시 제외 학교는 값이 없습니다.',
+      '학교알리미 정보공시 학생 현황' + (typeof STUDENT_DATA_DATE !== 'undefined' ? ` · 수집일 ${STUDENT_DATA_DATE}` : '')],
+    trend: ['해마다의 학교알리미 공시값입니다. 이전·재개교한 학교는 증감이 크게 보일 수 있습니다.',
+      hasTrendData() ? `연도별 학생 수 ${TREND_YEARS[0]}~${TREND_YEARS[TREND_YEARS.length - 1]}년 학교알리미 정보공시(앞선 해 일부는 서울 열린데이터광장 OA-22316)` : ''],
+    site: ['교지 면적은 교사대지+체육장 공시값이며 건물 면적이 아닙니다.',
+      hasSiteData() ? `학교알리미 정보공시 ${SITE_AREA_YEAR}년 공시 · 땅을 함께 쓰는 학교는 묶음 면적 ÷ 묶음 학생 수` : '']
+  }[activeLayer];
+  el.textContent = note[0];
+  el.title = note[1];
 }
 function toggleSummary() {
   toggleFold('summaryPanel');
@@ -3427,7 +3494,7 @@ function updateLegend() {
   h += `<div class="row"><span class="dot" style="background:#334155"></span> 선택한 학교</div>`;
   if (SCHOOLS.some(isGenuineCoordIssue)) h += `<div class="row"><span style="display:inline-flex;align-items:center;justify-content:center;width:9px;height:9px;border-radius:50%;background:#C0392B;color:#fff;font-size:7px;font-weight:700;">!</span> 좌표 확인 필요</div>`;
   if (typeof SCHOOL_STATUS !== 'undefined' && Object.values(SCHOOL_STATUS).some(x => x.badge)) h += `<div class="row"><span style="display:inline-flex;align-items:center;justify-content:center;width:9px;height:9px;border-radius:50%;background:#4A5D85;color:#fff;font-size:7px;font-weight:700;">휴</span> 휴교 중${Object.values(SCHOOL_STATUS).some(x => x.badge === '?') ? '·상태 확인 필요' : ''}(카드 참고)</div>`;
-  if (gapMode) h += `<div class="row"><span class="dot sq" style="background:rgba(91,107,140,.55)"></span> 반경 밖 지역 (기준 학교가 반경 ${fmtR(gapM)} 밖)</div>`;
+  if (gapMode) h += `<div class="row"><span class="dot sq" style="background:rgba(91,107,140,.55)"></span> 반경 밖 영역(추정, 기준 학교가 반경 ${fmtR(gapM)} 밖)</div>`;
   h += `<div class="legend-note">지도를 축소하면 ${unitLabel()}별 ${activeLayer === 'size' ? '학생 수(진할수록 많음)' : activeLayer === 'site' ? '학생 1인당 교지(핀과 같은 색 구간)' : activeLayer === 'change' ? '새로 개방·개방 중단 학교 수' : activeLayer === 'trend' ? '학생 수 합계 증감률(핀과 같은 색 구간)' : '개방률'}로 표시됩니다${activeLayer === 'size' ? '<br>핀 안의 숫자는 학급 수입니다' : ''}</div>`;
   // 2026-10-12: 설명 글(.legend-note)이 길어 범례가 지도 오른쪽 아래 자치구 라벨(송파구 등)을 가려서, 색 항목만 늘 보이고
   // 설명은 "읽는 법 ▾"로 접는다(펼친 상태는 탭을 바꿔도 유지, 저장하지 않음)
@@ -3688,9 +3755,10 @@ function renderGap() {
   const rows = Object.entries(per).map(([k, p]) => ({ k, ...p, pct: p.gap / p.n })).sort((a, b) => a.k.localeCompare(b.k, 'ko'));   // 비율 순으로 세우면 순위표처럼 읽혀서 가나다순(2026-10-02)
   const A = g.areaKm2;
   box.innerHTML = `
-    <div class="mp-sum">기준: <b>${critLabel()}</b> · ${levelCritLabel()} (<b>${g.schoolCount}</b>개교)<br>
-      반경 ${fmtR(gapM)} 안에 기준 학교가 없는 지역: <b>약 ${(gapCells.length * A).toFixed(0)}㎢</b>
-      (사람이 사는 곳으로 추정한 ${(g.cells.length * A).toFixed(0)}㎢ 중 <b>${fix1(gapCells.length / g.cells.length * 100)}%</b>)</div>
+    <div class="mp-sum">기준: <b>${critLabel()}</b> · ${levelCritLabel()} (서울 전체 <b>${fmtNum(g.schoolCount)}</b>개교)<br>
+      반경 ${fmtR(gapM)} 안에 기준 학교가 없는 격자: <b>약 ${(gapCells.length * A).toFixed(0)}㎢</b>
+      (분석 대상 격자 ${(g.cells.length * A).toFixed(0)}㎢ 중 <b>${fix1(gapCells.length / g.cells.length * 100)}%</b>)</div>
+    <div class="mp-hint gap-scope">검색어·자치구 선택과 무관하게 서울 전체 기준 학교로 계산합니다(시설·학교급·설립 조건만 반영). 목록 학교 수와 다를 수 있습니다.</div>
     <div class="mp-sub-title">${unitLabel()}별 반경 밖 비율 (가나다순)</div>
     <ul class="mp-list gap-list">
       ${rows.map(r => `<li data-g="${r.k}"><span class="mp-name">${r.k}</span>
@@ -3698,12 +3766,12 @@ function renderGap() {
         <span class="mp-dist">${round0(r.pct * 100)}%</span></li>`).join('')}
     </ul>
     <div class="mp-hint">직선거리 기준의 근사값(500m 격자)입니다. 실제 보행·차량 접근성과는 다를 수 있습니다.<br>
-      어느 학교든 ${fmtR(GAP_RESIDENTIAL_M)} 밖인 격자(큰 산 등 약 ${(g.excluded * A).toFixed(0)}㎢)는 사람이 살지 않는 곳으로 보고 뺐습니다(추정). 한강·작은 산은 일부 남아 있고, 인구 수는 반영하지 않았습니다.</div>`;
+      분석 대상 격자 = 어느 학교든 ${fmtR(GAP_RESIDENTIAL_M)} 안인 격자입니다. 그 밖(큰 산 등 약 ${(g.excluded * A).toFixed(0)}㎢)은 뺐지만 실제 거주 여부는 확인하지 않았고, 한강·작은 산은 일부 남아 있으며 인구 수는 반영하지 않았습니다.</div>`;
   box.querySelectorAll('li[data-g]').forEach(li => { li.onclick = () => setGroup(li.dataset.g); });
 }
 function refreshGap() { if (gapMode) renderGap(); }
 function setGapMode(on) {
-  if (on && !mapAvailable) { toast('지도를 불러오지 못해 반경 밖 지역 보기를 사용할 수 없습니다.'); return; }
+  if (on && !mapAvailable) { toast('지도를 불러오지 못해 반경 밖 영역 보기를 사용할 수 없습니다.'); return; }
   if (on) setRadiusMode(false);
   gapMode = on;
   document.getElementById('toolGap').classList.toggle('on', on);
@@ -3717,17 +3785,17 @@ function aggColumns() {
   if (activeLayer === 'size') return [
     { key: 'cls', label: '학급 수', val: st => st.cls },
     { key: 'stu', label: '학생 수', val: st => st.stu },
-    { key: 'avg', label: '학급당 학생', val: st => st.cls ? round1(st.stu / st.cls) : 0 }];
+    { key: 'avg', label: '학급당 학생', val: st => st.cls ? round1(st.stu / st.cls) : null }];
   if (activeLayer === 'site') return [
     { key: 'sN', label: '값 있는 학교', val: st => st.sN },
     { key: 'sA', label: '교지(㎡, 배분)', val: st => Math.round(st.sA), num: true },
     { key: 'sS', label: '학생', val: st => st.sS, num: true },
-    { key: 'sP', label: '1인당(㎡)', val: st => st.sS ? round1(st.sA / st.sS) : 0 }];
+    { key: 'sP', label: '1인당(㎡)', val: st => st.sS ? round1(st.sA / st.sS) : null }];
   if (activeLayer === 'trend') return [
     { key: 'tN', label: '비교 가능', val: st => st.tN },
     { key: 'tA', label: `${trendY0()}년 학생`, val: st => st.tA, num: true },
     { key: 'tB', label: `${trendY1()}년 학생`, val: st => st.tB, num: true },
-    { key: 'tR', label: '증감률(%)', val: st => st.tA ? round1((st.tB - st.tA) / st.tA * 100) : 0, pct: true }];
+    { key: 'tR', label: '증감률(%)', val: st => st.tA ? round1((st.tB - st.tA) / st.tA * 100) : null, pct: true }];
   if (activeLayer === 'change') return [
     { key: 'comp', label: '비교 가능', val: st => st.comp },
     { key: 'gain', label: '새로 개방', val: st => st.gain },
@@ -3746,7 +3814,7 @@ function aggRows() {
   const countOnly = isSize || isChange || isTrend || isSite;      // 학교 수만 보여 주고 '개방 학교·개방률' 열은 넣지 않는 레이어
   const rows = groupList().map(g => {
     const st = stats[g];
-    const r = { g, total: st.total, open: st.open, base: st.base, pct: st.base ? st.open / st.base : 0 };
+    const r = { g, total: st.total, open: st.open, base: st.base, pct: st.base ? st.open / st.base : null };
     cols.forEach(c => { r[c.key] = c.val(st); });
     return r;
   });
@@ -3756,16 +3824,17 @@ function aggRows() {
   const sortCol = picked ? aggSort.col : 'g';
   const dir = picked ? aggSort.dir : 'asc';
   rows.sort((a, b) => {
+    if (sortCol !== 'g' && (a[sortCol] == null || b[sortCol] == null)) return a[sortCol] == null ? (b[sortCol] == null ? 0 : 1) : -1;   // 값 없는 행(—)은 늘 맨 아래
     const cmp = sortCol === 'g' ? a.g.localeCompare(b.g, 'ko') : (a[sortCol] - b[sortCol]);
     return dir === 'asc' ? cmp : -cmp;
   });
   const total = { g: '합계', total: 0, open: 0, base: 0 };
   cols.forEach(c => { total[c.key] = 0; });
-  rows.forEach(r => { total.total += r.total; total.open += r.open; total.base += r.base; cols.forEach(c => { total[c.key] += r[c.key]; }); });
-  total.pct = total.base ? total.open / total.base : 0;
-  if (isSize) total.avg = total.cls ? round1(total.stu / total.cls) : 0;   // 평균은 합이 아니라 다시 계산
-  if (isSite) total.sP = total.sS ? round1(total.sA / total.sS) : 0;   // 1인당도 합계로 다시 계산
-  if (isTrend) total.tR = total.tA ? round1((total.tB - total.tA) / total.tA * 100) : 0;   // 증감률도 합계로 다시 계산
+  rows.forEach(r => { total.total += r.total; total.open += r.open; total.base += r.base; cols.forEach(c => { total[c.key] += r[c.key] || 0; }); });
+  total.pct = total.base ? total.open / total.base : null;
+  if (isSize) total.avg = total.cls ? round1(total.stu / total.cls) : null;   // 평균은 합이 아니라 다시 계산
+  if (isSite) total.sP = total.sS ? round1(total.sA / total.sS) : null;   // 1인당도 합계로 다시 계산
+  if (isTrend) total.tR = total.tA ? round1((total.tB - total.tA) / total.tA * 100) : null;   // 증감률도 합계로 다시 계산
   return { rows, total, cols, countOnly, isSize, isChange, isTrend, sortCol, dir };
 }
 function setAggSort(col) {
@@ -3781,8 +3850,8 @@ function renderAgg() {
   const arrow = c => sortCol === c ? (dir === 'asc' ? ' ▲' : ' ▼') : '';
   const th = (c, label) => `<th data-col="${c}">${label}${arrow(c)}</th>`;
   const line = r => `<td>${r.g}</td><td>${fmtNum(r.total)}</td>` +
-    (countOnly ? '' : `<td>${fmtNum(r.open)}</td><td>${round0(r.pct * 100)}%</td>`) +
-    cols.map(c => `<td>${isSize || c.num ? fmtNum(r[c.key]) : c.pct ? fmtPct(r[c.key] / 100) : c.signed ? fmtSigned(r[c.key]) : fmtNum(r[c.key])}</td>`).join('');
+    (countOnly ? '' : `<td>${fmtNum(r.open)}</td><td>${r.pct == null ? '—' : round0(r.pct * 100) + '%'}</td>`) +
+    cols.map(c => `<td>${isSize || c.num ? fmtNum(r[c.key]) : c.pct ? fmtPct(r[c.key] == null ? null : r[c.key] / 100) : c.signed ? fmtSigned(r[c.key]) : fmtNum(r[c.key])}</td>`).join('');
   document.getElementById('aggBody').innerHTML = `
     <table class="agg-table">
       <thead><tr>${th('g', unitLabel())}${th('total', '학교 수')}${countOnly ? '' : th('open', facRateName() + '개방 학교') + th('pct', facRateName() + '개방률')}
@@ -3800,7 +3869,7 @@ function renderAgg() {
 function aggExportTable() {
   const { rows, total, cols, countOnly } = aggRows();
   const head = [unitLabel(), '학교 수', ...(countOnly ? [] : [facRateName() + '개방 학교', facRateName() + '개방률(%)']), ...cols.map(c => c.label)];
-  const line = r => [r.g, r.total, ...(countOnly ? [] : [r.open, round0(r.pct * 100)]), ...cols.map(c => r[c.key])];
+  const line = r => [r.g, r.total, ...(countOnly ? [] : [r.open, r.pct == null ? null : round0(r.pct * 100)]), ...cols.map(c => r[c.key])];   // 분모 0은 null → CSV·엑셀 빈칸
   const DEC = ['avg', 'sP', 'tR'];
   const fmt = [null, 'int', ...(countOnly ? [] : ['int', 'int']), ...cols.map(c => DEC.includes(c.key) ? 'dec' : c.signed ? 'signed' : 'int')];
   return { head, rows: rows.map(line), total: line(total), fmt, groups: rows.length, schools: total.total };
@@ -3808,7 +3877,7 @@ function aggExportTable() {
 function aggCsv() {
   const { head, rows, total } = aggExportTable();
   return [head, ...rows, total]
-    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 // 집계표 아래 설명(화면·엑셀 공용). 화면에서만 쓰는 "행을 누르면…" 안내는 renderAgg가 덧붙인다.
 function aggHintText() {
@@ -3817,7 +3886,8 @@ function aggHintText() {
     : isTrend ? `${trendY0()}·${trendY1()}년 학생 수가 모두 있는 학교(비교 가능)만 합쳐 계산한 증감률입니다(학교별 증감률의 평균이 아님). 최근 3년은 학교알리미 OpenAPI, 그 앞의 해는 서울 열린데이터광장(학교알리미 공시) 자료입니다. `
     : isSize ? `학교알리미 공시 기준 합계입니다(학급수는 특수학급 포함). 공시 제외·미조회 학교는 합계에서 빠집니다${(() => { const n = SCHOOLS.filter(s => matchesNonDistrictFilters(s) && stuOf(s) == null).length; return n ? ` (현재 조건에서 ${fmtNum(n)}개교)` : ''; })()}. `
     : isChange ? `${prevYear()}·${DISCLOSURE_YEAR}년 공시가 모두 있는 학교만 비교합니다(비교 가능). 새로 개방·개방 중단은 ${activeFacilities.size ? '고른 시설' : '시설 6종'} 중 하나라도 개방했는지를 학교 단위로, "○○ 순"은 그 시설을 새로 연 학교 수 − 닫은 학교 수입니다. `
-    : '시설 열은 해당 시설을 개방하는 학교 수입니다. ') + '현재 학교급·시설·검색 조건이 반영됩니다.';
+    : '시설 열은 해당 시설을 개방하는 학교 수입니다. ') + '현재 학교급·시설·검색 조건이 반영됩니다. '
+    + '나눌 학교가 없는 칸은 0이 아니라 —(내려받은 파일은 빈칸)입니다.';
 }
 const AGG_OFFICE_NOTE = '교육지원청은 학교 소재지 자치구를 묶은 기준입니다(고등학교 포함, 공식 관할 통계와 다를 수 있음).';
 // 엑셀 집계표(2026-10-04): 목록 엑셀과 같은 서식. 집계표는 탭 전용 골라 보기를 걸지 않으므로(늘 적용 조건만) 맨 위 조건 줄도 그것만 적는다.
@@ -3885,7 +3955,11 @@ function bindUi() {
   tfTitle.onclick = () => toggleFold('tabFilters');
   tfTitle.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFold('tabFilters'); } };
   // 조건 줄의 "요약 ▾"는 줄을 다시 그릴 때마다 새로 생기므로 줄에 한 번만 건다(접힌 상태는 #summaryPanel class에 남음)
-  document.getElementById('condLine').onclick = e => { if (e.target.closest('#summaryBtn')) toggleSummary(); };
+  document.getElementById('condLine').onclick = e => {
+    if (e.target.closest('#summaryBtn')) return toggleSummary();
+    const c = e.target.closest('[data-clear]');
+    if (c) resetConds(c.dataset.clear === '*' ? null : [c.dataset.clear]);
+  };
   const dlBtn = document.getElementById('dlBtn'), dlMenu = document.getElementById('dlMenu');
   dlBtn.onclick = () => setDlMenu(dlMenu.hidden);
   dlMenu.addEventListener('click', e => { if (e.target.closest('.dl-item')) setDlMenu(false); });
@@ -4081,7 +4155,7 @@ function helpHtml() {
       <li><b>자치구·학교급·설립</b>은 어느 탭에서나 걸리는 조건입니다. 탭에서만 쓰는 조건(시설, 구간, 비교 기간 등)은 "○○ 탭에서 골라 보기"의 ${key('펼치기 ▾')}를 눌러 엽니다.</li>
       <li>지도를 <b>축소</b>하면 자치구(또는 교육지원청)별 색과 숫자가, <b>확대</b>하면 학교 핀과 묶음 원(숫자 = 학교 수)이 보입니다. 자치구 숫자는 그 구의 값이라, 탭에서 고른 칩은 반영되지 않습니다.</li>
       <li>학교 핀이나 목록의 학교를 누르면 <b>학교 카드</b>가 열립니다. 지금 탭과 관련된 내용이 펼쳐져 있습니다.</li>
-      <li>지도 위 ${key('반경 검색')} 은 한 지점 주변의 학교를 거리순으로, ${key('반경 밖 지역')} 은 개방 학교에서 일정 거리 밖인 곳을, ${key('집계표')} 는 자치구·교육지원청별 합계를 보여 줍니다. 목록과 집계표는 엑셀(서식 포함)·CSV로 받을 수 있습니다(목록은 정렬 옆 ${key('내려받기 ▾')}).</li>
+      <li>지도 위 ${key('반경 검색')} 은 한 지점 주변의 학교를 거리순으로, ${key('반경 밖 영역')} 은 개방 학교에서 일정 거리 밖인 영역(추정)을, ${key('집계표')} 는 자치구·교육지원청별 합계를 보여 줍니다. 목록과 집계표는 엑셀(서식 포함)·CSV로 받을 수 있습니다(목록은 정렬 옆 ${key('내려받기 ▾')}).</li>
       <li>${key('내려받기 ▾')} 의 "🔗 이 화면 링크 복사"로 지금 탭·조건·고른 학교를 담은 주소를 동료에게 보낼 수 있습니다. 받은 사람이 열면 같은 화면이 나옵니다.</li>
     </ul>
     <h3>읽을 때 주의</h3>
