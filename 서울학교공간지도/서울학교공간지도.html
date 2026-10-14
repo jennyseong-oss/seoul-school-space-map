@@ -494,6 +494,24 @@
   .agg-table tbody tr:hover { background: var(--bg); }
   .agg-table tbody tr.sel { background: var(--brand-soft); }
   .agg-table tbody tr.no-school td { color: #A3ACB9; font-weight: 400; }
+  /* 고른 학교 나란히 보기(2026-10-14) */
+  .map-panel.cmp-panel { width: min(calc(180px + var(--cmp-cols, 4) * 170px), calc(100% - 88px)); max-height: calc(100% - 24px); }   /* 학교 수만큼 넓게(4곳이면 860px) */
+  .cmp-wrap { overflow-x: auto; margin: 4px 0 6px; }
+  .cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .cmp-table th, .cmp-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  .cmp-table thead th { font-size: 12px; color: var(--ink); position: sticky; top: 0; background: var(--panel); }
+  .cmp-table tbody th { font-weight: 400; color: var(--ink-soft); position: sticky; left: 0; background: var(--panel); }
+  .cmp-table td { white-space: normal; vertical-align: top; min-width: 120px; }
+  .cmp-table tbody th { vertical-align: top; }
+  .cmp-v { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .cmp-t { color: var(--ink); }
+  .cmp-sub, .cmp-ref { display: block; font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
+  .cmp-ref { color: #8A94A3; }
+  .cmp-meta { font-weight: 400; font-size: 11px; color: var(--ink-soft); }
+  .cmp-table tr.sec td { background: var(--bg); font-size: 11px; color: var(--ink-soft); font-weight: 600; padding: 4px 8px; }
+  .cmp-table .badge { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: 0; margin-right: 4px; }
+  .cmp-tag { font-size: 10.5px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; margin-left: 2px; }
+  .sel-cmp { border-color: var(--brand); color: var(--brand); font-weight: 600; }
   .agg-table tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; background: var(--bg); }
 
   .legend .dot.sq { border-radius: 2px; }
@@ -518,6 +536,9 @@
 
   @media (max-width: 760px) {
     .map-panel, .map-panel.wide { left: 8px; right: 8px; width: auto; top: 52px; max-height: 46vh; }
+    .cmp-table th, .cmp-table td { padding: 5px 5px; font-size: 11.5px; }
+    .cmp-table tbody th { white-space: normal; min-width: 64px; max-width: 80px; }   /* 360px 폰: 항목 이름은 줄바꿈, 학교 칸은 가로로 밀어 봄 */
+    .cmp-table td { min-width: 104px; }
     .map-tools { left: 8px; top: 8px; }
     .layer-tab { font-size: 12px; padding: 5px 10px; }
     /* 휴대폰 폭(375px 안팎)에 목록 표가 가로로 넘치지 않게 앞 칸을 좁힌다(2026-10-04, PC 444px 기준 폭에서 약 84px 덜어 360px 폰에도 맞춤) */
@@ -725,15 +746,12 @@
     <div class="cond-line" id="condLine"></div>
     <div class="summary-panel folded" id="summaryPanel"></div>
     <p class="list-note" id="listNote"></p>
+    <!-- 체크한 학교 줄(2026-10-14 정리): 나란히 보기·엑셀·해제만. 학교명 복사(줄바꿈/쉼표)와 CSV는 담당자 검토로 뺌 — 공문에는 다른 방법으로 학교 이름을 넣고, 파일은 엑셀로 충분 -->
     <div class="sel-bar" id="selBar" hidden>
       <span class="sel-count" id="selCount"></span>
-      <select id="copyFmt" class="sort-select" title="복사 형식">
-        <option value="lines">학교명 (줄바꿈)</option>
-        <option value="comma">학교명 (쉼표)</option>      </select>
-      <button type="button" class="csv-btn" id="copyBtn">복사</button>
-      <button type="button" class="csv-btn" id="selXlsxBtn">엑셀</button>
-      <button type="button" class="csv-btn" id="selCsvBtn">CSV</button>
-      <button type="button" class="csv-btn" id="selClearBtn">해제</button>
+      <button type="button" class="csv-btn sel-cmp" id="selCmpBtn" title="체크한 학교 2~4곳을 값만 나란히 봅니다(비교 기준 함께)">나란히 보기</button>
+      <button type="button" class="csv-btn" id="selXlsxBtn" title="체크한 학교만 목록과 같은 칸으로 엑셀 파일로 받습니다(넣을 항목은 위 내려받기 ▾ 설정을 따름)">엑셀</button>
+      <button type="button" class="csv-btn" id="selClearBtn" title="체크를 모두 풉니다">✕ 해제</button>
     </div>
     <div class="table-wrap" id="tableWrap">
       <table class="school-table">
@@ -767,6 +785,12 @@
       <div class="mp-head"><b>개방 학교 반경 밖 영역(추정)</b><button type="button" class="mp-x" data-close="gap" aria-label="닫기">✕</button></div>
       <div class="mp-chips" id="gapChips"></div>
       <div id="gapResult"></div>
+    </div>
+    <div class="map-panel wide cmp-panel" id="cmpPanel" role="dialog" aria-labelledby="cmpTitle">
+      <div class="mp-head"><b id="cmpTitle">고른 학교 나란히 보기</b>
+        <span class="mp-btns"><button type="button" class="csv-btn" id="cmpXlsxBtn">엑셀</button>
+        <button type="button" class="mp-x" data-close="cmp" aria-label="닫기">✕</button></span></div>
+      <div id="cmpBody"></div>
     </div>
     <div class="map-panel wide" id="aggPanel">
       <div class="mp-head"><b id="aggTitle">집계표</b>
@@ -3561,6 +3585,10 @@ function updateMarkerImage(name) {
 function checkedSchools() { return SCHOOLS.filter(s => checked.has(s.name)); }
 function updateSelBar() {
   document.getElementById('selBar').hidden = checked.size === 0;
+  if (cmpOpen) {
+    if (checked.size > CMP_MAX) toast(`나란히 보기는 ${CMP_MAX}곳까지라 창을 닫았습니다. ${CMP_MAX}곳 이하로 고른 뒤 다시 눌러 주세요.`);
+    if (checked.size < CMP_MIN || checked.size > CMP_MAX) setCompare(false); else renderCompare();
+  }
   document.getElementById('selCount').textContent = `${fmtNum(checked.size)}개교 선택`;
 }
 function syncHeaderCheck() {
@@ -3583,11 +3611,6 @@ function toggleAll(schools, on) {
   });
   updateSelBar();
   renderList();
-}
-function selectionText(fmt) {
-  const names = checkedSchools().map(s => s.name);
-  if (fmt === 'comma') return names.join(', ');
-  return names.join('\n');
 }
 
 // ---------------- 4-a) 반경 검색 ----------------
@@ -3957,7 +3980,7 @@ function aggFileName(ext) {
     + (activeLayer === 'trend' && hasTrendData() ? `_${trendY0()}-${trendY1()}` : '') + `_${todayStamp()}.${ext}`;
 }
 function setAgg(on) {
-  if (on) setDataPanel(false);
+  if (on) { setDataPanel(false); if (cmpOpen) setCompare(false); }
   aggOpen = on;
   document.getElementById('toolAgg').classList.toggle('on', on);
   document.getElementById('aggPanel').classList.toggle('open', on);
@@ -3966,7 +3989,105 @@ function setAgg(on) {
 }
 // 휴대폰에서 집계표·점검 창이 아래 시트에 가리지 않게 열려 있는 동안 시트를 숨긴다(CSS body.panel-open)
 function syncPanelOpen() {
-  document.body.classList.toggle('panel-open', !!(aggOpen || dataOpen));
+  document.body.classList.toggle('panel-open', !!(aggOpen || dataOpen || cmpOpen));
+}
+
+// ---------------- 2-b) 고른 학교 나란히 보기(2026-10-14 외부 검토 후속 3번) ----------------
+// 목록에서 체크한 2~4곳을 열로 세우고, 값마다 아래에 비교 기준(같은 구·같은 학교급 / 서울 같은 학교급)을 작게 붙인다.
+// 값만 나란히 — 순위·색 판정 없이, 학교 순서는 가나다. 카드와 같은 계산(openShareOf·perClassOf·trendSum·siteSum)을 쓴다.
+// 탭·시설 칩과 무관하게 늘 같은 항목(카드처럼 시설 6종 기준).
+const CMP_MIN = 2, CMP_MAX = 4;
+let cmpOpen = false, cmpShowRef = true;
+function cmpSchools() { return checkedSchools().slice().sort((a, b) => compareNames(a.name, b.name)); }
+// 2026-10-14 담당자 의견("비교 자료가 어렵다")으로 모양을 바꿈: 비교 기준을 따로 열로 두지 않고 학교 값 바로 아래에 작게
+// ("강남구 고교 25.7 · 서울 고교 23.7"), 시설은 6줄 대신 "개방한 시설 / 있지만 개방 안 함 / 시설 없음" 세 줄에 이름으로.
+// 시설 비교 비율(그 시설이 있는 학교 중 개방 %)은 뜻을 설명해야 해서 이 표에서는 뺌(카드·집계표에 있음).
+const LV_SHORT = { 초: '초교', 중: '중학교', 고: '고교', 특수: '특수학교', 각종: '각종학교' };
+const lvShort = l => LV_SHORT[l] || levelLabel(l);
+const facNames = fs => fs.map(f => FACILITY_SHORT[f] || f).join(' · ');
+const CMP_CHANGE_TEXT = { gain: '올해 새로 개방', loss: '올해 개방 중단', keep: '작년에도 개방', none: '작년에도 개방 안 함', na: '비교할 수 없음' };
+// 같은 구·같은 학교급 / 서울 같은 학교급 값을 "강남구 고교 25.7 · 서울 고교 23.7" 한 줄로
+function cmpRefLine(s, calc, fmt) {
+  if (!cmpShowRef) return '';
+  const a = calc(SCHOOLS.filter(x => x.district === s.district && x.level === s.level)), b = calc(SCHOOLS.filter(x => x.level === s.level));
+  return `${s.district} ${lvShort(s.level)} ${fmt(a)} · 서울 ${lvShort(s.level)} ${fmt(b)}`;
+}
+// 행 = { k(항목), sub?(항목 아래 작은 글씨), sec?(묶음 제목), cells(학교마다 { v, sub?, ref?, tag?, tip?, dot? }) }
+function cmpRows(list) {
+  const rows = [];
+  if (list.some(s => statusOf(s.name))) rows.push({ k: '학교 상태', cells: list.map(s => ({ v: statusOf(s.name) ? statusOf(s.name).label : '—' })) });
+  rows.push({ sec: `시설 개방 (${DISCLOSURE_YEAR} 공시)` });
+  const by = (s, test) => FACILITIES.filter(f => test(s.fac[f]));
+  rows.push({ k: '개방한 시설', cells: list.map(s => {
+    if (s.ex) return { v: '공시 제외', sub: typeof s.ex === 'string' ? s.ex : '' };
+    const o = by(s, v => v === '유');
+    if (isSchoolClosed(s)) return { v: '휴교 중', sub: o.length ? `공시상 개방: ${facNames(o)}` : '', dot: 'none' };
+    return o.length === FACILITIES.length ? { v: '6종 모두', dot: 'open' } : o.length ? { v: `${o.length}종`, sub: facNames(o), dot: 'open' } : { v: '없음', dot: 'none' };
+  }) });
+  rows.push({ k: '있지만 개방 안 함', cells: list.map(s => { const c = s.ex ? [] : by(s, v => v === '무'); return c.length ? { v: facNames(c), dot: 'closed', small: true } : { v: '—' }; }) });
+  rows.push({ k: '시설 없음', cells: list.map(s => { const c = s.ex ? [] : by(s, v => v !== '유' && v !== '무'); return c.length ? { v: facNames(c), dot: 'none', small: true } : { v: '—' }; }) });
+  if (hasPrevData()) rows.push({ k: '작년 공시와 비교', sub: `${prevYear()} → ${DISCLOSURE_YEAR}`, cells: list.map(s => ({ v: CMP_CHANGE_TEXT[changeKind(s, FACILITIES)], small: true })) });
+  if (hasStudentData()) {
+    rows.push({ sec: '학생 · 학급' });
+    rows.push({ k: '학생 수', cells: list.map(s => stuOf(s) == null ? { v: '—', sub: studentNote(s) || '' } : { v: `${fmtNum(stuOf(s))}명`, sub: `${fmtNum(clsOf(s))}학급` }) });
+    rows.push({ k: '학급당 학생', cells: list.map(s => ({ v: avgOf(s) == null ? '—' : `${fix1(avgOf(s))}명`, ref: cmpRefLine(s, perClassOf, r => r ? fix1(r.per) : '—') })) });
+  }
+  if (hasTrendData()) rows.push({ k: '학생 수 변화', sub: `${trendY0()} → ${trendY1()}`, cells: list.map(s => {
+    const e = trendEnds(s);
+    return { v: e ? fmtPct(trendRate(s)) : '—', sub: e ? `${fmtNum(e[0])} → ${fmtNum(e[1])}명` : trendNaReason(s), ref: cmpRefLine(s, trendSum, r => fmtPct(r.rate)) };
+  }) });
+  if (hasSiteData()) {
+    rows.push({ sec: '교지 (교사대지 + 체육장)' });
+    rows.push({ k: '학생 1명당 교지', cells: list.map(s => {
+      const g = (siteInfo(s) || {}).group, others = g ? g.filter(n => n !== s.name).map(shortSchoolName) : [];
+      return { v: fmtPer(sitePer(s)), tag: g ? '함께 씀' : '', tip: g ? `${others.join('·')}${josaWa(others[others.length - 1] || '')} 같은 땅을 써서 묶음 면적 ÷ 묶음 학생 수로 계산` : '',
+        ref: cmpRefLine(s, siteSum, r => fmtPer(r.per)) };
+    }) });
+  }
+  return rows;
+}
+function renderCompare() {
+  const list = cmpSchools(), body = document.getElementById('cmpBody');
+  if (list.length < CMP_MIN) { setCompare(false); return; }
+  const rows = cmpRows(list), cols = list.length + 1;
+  const head = `<tr><th></th>${list.map(s => `<th title="${esc(s.name)}">${esc(shortSchoolName(s.name))} <span class="cmp-meta">${esc(s.district)}</span></th>`).join('')}</tr>`;
+  const cell = c => `<td${c.tip ? ` title="${esc(c.tip)}"` : ''}>${c.dot ? `<span class="badge ${c.dot}"></span>` : ''}<span class="${c.small ? 'cmp-t' : 'cmp-v'}">${esc(c.v)}</span>`
+    + (c.tag ? ` <span class="cmp-tag">${esc(c.tag)}</span>` : '') + (c.sub ? `<span class="cmp-sub">${esc(c.sub)}</span>` : '') + (c.ref ? `<span class="cmp-ref">${esc(c.ref)}</span>` : '') + '</td>';
+  const tr = r => r.sec ? `<tr class="sec"><td colspan="${cols}">${esc(r.sec)}</td></tr>`
+    : `<tr><th scope="row">${esc(r.k)}${r.sub ? `<span class="cmp-sub">${esc(r.sub)}</span>` : ''}</th>${r.cells.map(cell).join('')}</tr>`;
+  document.getElementById('cmpTitle').textContent = `고른 학교 나란히 보기 (${list.length}곳)`;
+  document.getElementById('cmpPanel').style.setProperty('--cmp-cols', list.length);   // 창 폭 = 학교 수만큼
+  body.innerHTML = `<label class="mp-check"><input type="checkbox" id="cmpRefToggle"${cmpShowRef ? ' checked' : ''}> 같은 구·서울 같은 학교급 값도 작게 보기</label>
+    <div class="cmp-wrap"><table class="cmp-table"><thead>${head}</thead><tbody>${rows.map(tr).join('')}</tbody></table></div>
+    <div class="mp-hint">공시값이라 실제 이용 가능 여부와 다를 수 있습니다.${cmpShowRef ? ' 작은 글씨는 같은 구·서울 같은 학교급 전체를 합쳐 계산한 값입니다.' : ''}</div>`;
+  document.getElementById('cmpRefToggle').onchange = e => { cmpShowRef = e.target.checked; renderCompare(); };
+}
+function setCompare(on) {
+  if (on) {
+    const n = checked.size;
+    if (n < CMP_MIN) { toast(`목록에서 학교를 ${CMP_MIN}곳 이상 체크하면 나란히 볼 수 있습니다.`); return; }
+    if (n > CMP_MAX) { toast(`나란히 보기는 ${CMP_MAX}곳까지입니다. 지금 ${n}곳이 골라져 있어요 — 체크를 ${n - CMP_MAX}곳 풀어 주세요.`); return; }
+    setAgg(false); setDataPanel(false);
+  }
+  cmpOpen = on;
+  document.getElementById('cmpPanel').classList.toggle('open', on);
+  syncPanelOpen();
+  if (on) renderCompare();
+}
+// 엑셀: 화면과 같은 순서. 값 칸에는 값(+ 괄호 안 작은 글씨), 비교 기준은 바로 아래 "  같은 구·서울" 줄에
+function cmpToXlsx() {
+  const list = cmpSchools(), rows = cmpRows(list);
+  const head = ['항목', ...list.map(s => s.name)];
+  const out = [];
+  rows.forEach(r => {
+    if (r.sec) { out.push([r.sec, ...list.map(() => '')]); return; }
+    out.push([r.k + (r.sub ? ` (${r.sub})` : ''), ...r.cells.map(c => c.v + (c.tag ? ` · ${c.tag}` : '') + (c.sub ? ` (${c.sub})` : ''))]);
+    if (r.cells.some(c => c.ref)) out.push(['   └ 같은 구·서울 같은 학교급', ...r.cells.map(c => c.ref || '')]);
+  });
+  const notes = ['공시값이라 실제 이용 가능 여부와 다를 수 있습니다. "같은 구·서울 같은 학교급" 줄은 그 학교들을 모두 합쳐 계산한 값입니다(학교별 값의 평균이 아님).',
+    ...csvSourceLines(['facility', 'change', 'size', 'trend', 'site'])];
+  return buildXlsx({ sheetName: '학교 나란히', title: `서울 학교 공간 지도 · 고른 학교 나란히 보기 (${list.length}곳)`, subtitle: list.map(s => `${s.name}(${s.district})`).join(' · '),
+    head, headTab: head.map(() => false), rows: out, notes });
 }
 
 // ---------------- 이벤트 연결 ----------------
@@ -3985,13 +4106,7 @@ function bindUi() {
   else if (siteTab) siteTab.title = `학교알리미 ${SITE_AREA_YEAR} 공시 학생 1인당 교지(교사대지+체육장)`;
   document.querySelectorAll('#unitSeg button').forEach(b => { b.onclick = () => setGroupUnit(b.dataset.u); });
 
-  document.getElementById('copyBtn').onclick = async () => {
-    const ok = await copyText(selectionText(document.getElementById('copyFmt').value));
-    toast(ok ? `${fmtNum(checked.size)}개교 학교명을 복사했습니다.` : '복사하지 못했습니다. 브라우저 권한을 확인해 주세요.');
-  };
   document.getElementById('selXlsxBtn').onclick = () => downloadXlsx(checkedSchools(), '선택한 학교', '서울학교공간지도_선택학교');
-  document.getElementById('selCsvBtn').onclick = () =>
-    downloadText(schoolsToCsv(checkedSchools(), document.getElementById('csvScope').value), `서울학교공간지도_선택학교${csvFileTag()}_${todayStamp()}.csv`);
   document.getElementById('selClearBtn').onclick = () => {
     const names = [...checked];
     checked.clear();
@@ -4025,12 +4140,15 @@ function bindUi() {
       if (w === 'radius') setRadiusMode(false);
       else if (w === 'gap') setGapMode(false);
       else if (w === 'data') setDataPanel(false);
+      else if (w === 'cmp') setCompare(false);
       else setAgg(false);
     };
   });
   document.getElementById('radiusOnlyOpen').onchange = renderRadiusResult;
   document.getElementById('aggCsvBtn').onclick = () => downloadText(aggCsv(), aggFileName('csv'));
   document.getElementById('aggXlsxBtn').onclick = () => downloadBlob(aggToXlsx(), aggFileName('xlsx'));
+  document.getElementById('selCmpBtn').onclick = () => setCompare(true);
+  document.getElementById('cmpXlsxBtn').onclick = () => downloadBlob(cmpToXlsx(), `서울학교공간지도_학교나란히_${cmpSchools().length}곳_${todayStamp()}.xlsx`);
   renderRadiusChips('radiusChips', radiusM, [500, 1000, 2000, 3000], setRadiusM);
   renderRadiusChips('gapChips', gapM, [500, 1000, 2000, 3000], setGapM);
 }
@@ -4089,7 +4207,7 @@ function renderDisclosureDataPanel() {
   document.getElementById('dataBody').innerHTML = html;
 }
 function setDataPanel(on) {
-  if (on) setAgg(false);
+  if (on) { setAgg(false); if (cmpOpen) setCompare(false); }
   dataOpen = on;
   document.getElementById('toolData').classList.toggle('on', on);
   document.getElementById('dataPanel').classList.toggle('open', on);
@@ -4209,6 +4327,7 @@ function helpHtml() {
       <li>지도를 <b>축소</b>하면 자치구(또는 교육지원청)별 색과 숫자가, <b>확대</b>하면 학교 핀과 묶음 원(숫자 = 학교 수)이 보입니다. 자치구 숫자는 그 구의 값이라, 탭에서 고른 칩은 반영되지 않습니다.</li>
       <li>학교 핀이나 목록의 학교를 누르면 <b>학교 카드</b>가 열립니다. 지금 탭과 관련된 내용이 펼쳐져 있습니다.</li>
       <li>지도 위 ${key('반경 검색')} 은 한 지점 주변의 학교를 거리순으로, ${key('반경 밖 영역')} 은 개방 학교에서 일정 거리 밖인 영역(추정)을, ${key('집계표')} 는 자치구·교육지원청별 합계를 보여 줍니다. 목록과 집계표는 엑셀(서식 포함)·CSV로 받을 수 있습니다(목록은 정렬 옆 ${key('내려받기 ▾')}).</li>
+      <li>목록에서 학교 2~4곳을 체크하면 아래 ${key('나란히 보기')} 로 시설·학생·추이·교지를 한 표에서 견줄 수 있습니다(숫자 아래에 같은 구·서울 같은 학교급 값, 순위 없음).</li>
       <li>정렬 줄 오른쪽 ${key('🔗 링크')} 로 지금 탭·조건·고른 학교를 담은 주소를 동료에게 보낼 수 있습니다. 받은 사람이 열면 같은 화면이 나옵니다.</li>
     </ul>
     <h3>읽을 때 주의</h3>
