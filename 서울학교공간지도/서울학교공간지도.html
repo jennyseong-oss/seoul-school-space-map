@@ -179,6 +179,10 @@
   /* 탭 전용 골라 보기 묶음·지금 걸린 조건 한 줄(2026-10-02) */
   .tab-filters { margin: 8px 20px 6px; padding: 2px 0 8px; border: 1px solid var(--line); border-radius: 12px; background: #F8F9FB; }
   .tab-filters .filters { padding: 4px 12px 4px; }
+  .fac-quick { padding: 6px 0 0; }
+  .fac-quick .tf-sub { padding: 0 20px; }
+  .fac-quick .filters { padding: 4px 20px 2px; }
+  .fac-quick .tf-switch { padding: 4px 20px 2px; }
   .tf-title { padding: 10px 12px 2px; font-size: 12px; font-weight: 700; color: var(--ink); }
   .tf-title .tf-hint { font-weight: 400; color: var(--ink-soft); margin-left: 4px; }
   .tf-sub { padding: 6px 12px 0; font-size: 11.5px; color: var(--ink-soft); }
@@ -213,6 +217,9 @@
   .link-btn[aria-expanded="true"] { background: var(--brand-soft); }
   /* 패널 정리 ①: 제목 아래 회색 안내 상자 대신 목록 바로 위 작은 글씨(원칙상 늘 보이게) */
   .list-note { margin: 0; padding: 0 20px 6px; font-size: 10.5px; color: var(--ink-soft); border-bottom: 1px solid var(--line); word-break: keep-all; }
+  .list-note .table-key { display: block; margin-top: 1px; }
+  .list-note .badge { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 3px 0 6px; vertical-align: 0; }
+  .list-note .badge:first-child { margin-left: 4px; }
   /* 내려받기 ▾ 메뉴(패널 정리 ④) */
   .dl-wrap { position: relative; flex: none; }
   .dl-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; width: 210px; padding: 8px; background: var(--panel);
@@ -381,7 +388,8 @@
     /* 정렬 줄: 좁은 폭에서 버튼 글자가 세로로 쪼개지지 않게, 모자라면 두 줄로 감고 글자는 끊지 않는다(360px에서는 한 줄) */
     .sort-row { flex-wrap: wrap; margin-left: 0; width: 100%; }
     .sort-row label, .sort-row .csv-btn { white-space: nowrap; }
-    .sort-row #sortSel { flex: 1 1 140px; max-width: none; }
+    .sort-row #sortSel { flex: 1 1 120px; max-width: none; }
+    .link-copy .lk-t { display: none; }   /* 휴대폰: 정렬 줄을 한 줄로 두려고 🔗만(2026-10-14) */
   }
   @media (min-width: 761px) { .to-top-btn { display: none !important; } }
 
@@ -485,6 +493,7 @@
   .agg-table tbody tr { cursor: pointer; }
   .agg-table tbody tr:hover { background: var(--bg); }
   .agg-table tbody tr.sel { background: var(--brand-soft); }
+  .agg-table tbody tr.no-school td { color: #A3ACB9; font-weight: 400; }
   .agg-table tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; background: var(--bg); }
 
   .legend .dot.sq { border-radius: 2px; }
@@ -665,6 +674,8 @@
     <div class="filters" id="levelFilters"></div>
     <div class="filters" id="foundFilters"></div>
     <!-- 탭 전용 골라 보기(2026-10-02 정비): 위 검색·자치구·학교급·설립은 모든 탭에 늘 적용, 아래는 지금 탭에서만 적용(고른 값은 탭을 오가도 기억) -->
+    <!-- 시설 개방 탭에서는 시설 칩을 접힌 상자 밖 여기로 옮긴다(2026-10-14 외부 검토 — 첫 행동이 안 보였음, renderTabFilters) -->
+    <div class="fac-quick" id="facQuick" hidden></div>
     <div class="tab-filters folded" id="tabFilters">
       <div class="tf-title fold-title" id="tfTitle" role="button" tabindex="0" aria-expanded="false"></div>
       <div class="trend-period" id="trendPeriod" hidden></div><!-- 학생 수 추이: 비교 기간(2026-10-02 탭 상단에서 이 상자로 옮김) -->
@@ -692,11 +703,11 @@
           좌표 확인 필요만
         </label>
       </div>
-      <!-- 2026-10-12 패널 정리 ④: 넣을 항목·엑셀·CSV·링크 복사를 "내려받기 ▾" 하나로 -->
+      <!-- 2026-10-12 패널 정리 ④: 넣을 항목·엑셀·CSV를 "내려받기 ▾" 하나로. 링크 복사는 10-14 외부 검토 후속으로 옆 버튼으로 뺌 -->
       <div class="sort-row">
         <label for="sortSel">정렬</label><select id="sortSel" class="sort-select" title="표 머리글을 눌러도 정렬됩니다(한 번 더 누르면 반대 순서)"></select>
         <div class="dl-wrap">
-          <button type="button" id="dlBtn" class="csv-btn" aria-haspopup="true" aria-expanded="false" title="지금 보이는 목록(조건·정렬 그대로)을 엑셀·CSV로 받거나 이 화면 링크를 복사합니다">내려받기 ▾</button>
+          <button type="button" id="dlBtn" class="csv-btn" aria-haspopup="true" aria-expanded="false" title="지금 보이는 목록(조건·정렬 그대로)을 엑셀·CSV로 받습니다">내려받기 ▾</button>
           <div class="dl-menu" id="dlMenu" hidden>
             <label class="dl-scope">넣을 항목
               <select id="csvScope" class="sort-select">
@@ -706,9 +717,9 @@
             </label>
             <button type="button" id="downloadXlsxBtn" class="dl-item" title="머리글·열 너비·필터·인쇄 설정을 갖춘 엑셀 파일. 바로 첨부할 때">엑셀<span>서식 있는 파일</span></button>
             <button type="button" id="downloadCsvBtn" class="dl-item" title="서식 없는 CSV. 다른 프로그램에 자료를 다시 넣을 때">CSV<span>서식 없는 자료</span></button>
-            <button type="button" id="copyLinkBtn" class="dl-item dl-link" title="지금 탭·조건·정렬·고른 학교를 담은 주소를 복사합니다. 받은 사람이 열면 같은 화면이 나옵니다">🔗 이 화면 링크 복사</button>
           </div>
         </div>
+        <button type="button" id="copyLinkBtn" class="csv-btn link-copy" aria-label="이 화면 링크 복사" title="지금 탭·조건·정렬·고른 학교를 담은 주소를 복사합니다. 받은 사람이 열면 같은 화면이 나옵니다">🔗<span class="lk-t"> 링크</span></button>
       </div>
     </div>
     <div class="cond-line" id="condLine"></div>
@@ -1332,6 +1343,16 @@ function renderTopBar() {
         { v: fmtNum(l), label: '개방 중단', color: CHANGE_KINDS.loss.color },
         { v: fmtSigned(g - l), label: '순변화', note: `(${prevYear()}→${DISCLOSURE_YEAR})`, color: 'var(--ink)' },
         { v: fmtNum(n('na')), label: '비교 불가', color: 'var(--ink-soft)' }];
+    }
+    if (activeFacilities.size) {
+      // 시설 칩을 고르면 지도 라벨("○○구 체육관 57%")과 같은 기준(2026-10-14 담당자 화면 — 목록 138인데 상단 "개방 261"):
+      // 학교는 거르지 않고, 개방 = 고른 시설 중 하나라도 개방(effectiveOpen), 미개방 = 그 시설이 있으나 개방 안 함(rateBaseOk), 나머지 = 시설 없음·공시 제외
+      const name = facRateName();
+      const open = list.filter(effectiveOpen).length, base = list.filter(rateBaseOk).length;
+      return [
+        { v: fmtNum(open), label: name + '개방', cls: 'open' },
+        { v: fmtNum(base - open), label: name + '미개방', cls: 'closed' },
+        { v: fmtNum(list.length - base), label: '시설 없음·공시 제외', color: 'var(--ink-soft)' }];
     }
     const open = list.filter(s => !isSchoolClosed(s) && FACILITIES.some(f => s.fac[f] === '유')).length;
     const ex = list.filter(s => s.ex).length;   // 공시 제외(개방 공시 보기에만 있음)
@@ -2148,7 +2169,7 @@ function sortLabel() {
 }
 // 1줄: 목록 수 + 조건 칩. 2026-10-12에 탭 전용 조건을 여기서 뺐더니 체육관 칩을 골라도 "전체 학교"로 보여(외부 검토 10-14)
 // 다시 넣고, 조건마다 × 해제, 둘 이상이면 "모두 해제". 탭 전용 조건은 점선 칩(마우스를 올리면 "○○ 탭에서만").
-// 2줄: 정렬(한 덩어리) · "요약 ▾"(조건별 요약 상자 #summaryPanel을 펼침). 링크 복사는 "내려받기 ▾" 메뉴로 옮김.
+// 2줄: 정렬(한 덩어리) · "요약 ▾"(조건별 요약 상자 #summaryPanel을 펼침). 링크 복사는 정렬 줄의 "🔗 링크" 버튼(10-14).
 function renderCondLine(n) {
   const items = condItems(), clearable = items.filter(i => !i.fixed).length;
   const chips = items.map(i => {
@@ -3385,7 +3406,7 @@ const LAYER_NAME = { facility: '시설 개방', change: '개방 변화', size: '
 // 접혀 있으면 지금 고른 값을 제목 옆에 보여 준다(칩을 바꿀 때마다 renderCondLine에서도 다시 부름)
 function renderTabFilterTitle() {
   const box = document.getElementById('tabFilters'), folded = box.classList.contains('folded');
-  const picked = folded ? condParts().tab.join(' · ') : '';
+  const picked = folded ? condItems().filter(i => i.tab && !(activeLayer === 'facility' && i.key === 'facility')).map(i => i.text).join(' · ') : '';   // 시설 개방 탭의 시설 칩은 상자 밖에 보이므로 뺌
   const t = document.getElementById('tfTitle');
   t.setAttribute('aria-expanded', String(!folded));
   t.innerHTML = `${LAYER_NAME[activeLayer]} 탭에서 ${activeLayer === 'trend' && TREND_PRESETS.length > 1 ? '기간·' : ''}골라 보기`
@@ -3398,9 +3419,18 @@ function toggleFold(id) {
 function renderTabFilters() {
   const isFac = activeLayer === 'facility', isChange = activeLayer === 'change';
   renderTabFilterTitle();
-  const fsub = document.getElementById('facilitySub');
-  fsub.hidden = document.getElementById('facilityFilters').hidden = !(isFac || isChange);
-  fsub.textContent = isChange ? '비교할 시설 — 학교를 거르지 않고, 무엇을 기준으로 개방 변화를 볼지 정합니다' : '개방한 시설';
+  const fsub = document.getElementById('facilitySub'), fchips = document.getElementById('facilityFilters');
+  // 시설 개방 탭: 시설 칩·"개방 시설 있는 학교만"은 상자 밖(#facQuick)에 늘 펼쳐 두고, 그러면 상자에 남는 게 없어 상자는 숨김.
+  // 다른 탭(개방 변화의 "비교할 시설")에서는 상자 안 원래 자리로 되돌린다.
+  const quick = document.getElementById('facQuick'), onlyRow = document.getElementById('onlyOpenRow');
+  if (isFac) quick.append(fsub, fchips, onlyRow);
+  else if (fsub.parentNode === quick) document.getElementById('changeSub').before(fsub, fchips, onlyRow);
+  quick.hidden = !isFac;
+  document.getElementById('tabFilters').hidden = isFac;
+  fsub.hidden = fchips.hidden = !(isFac || isChange);
+  fsub.hidden = fsub.hidden || isFac;   // 시설 개방 탭은 "전체 시설" 칩이 제목 노릇을 해서 제목 줄은 생략(목록이 덜 내려가게)
+  fchips.title = isFac ? '개방한 시설로 학교를 골라 봅니다(시설 개방 탭에서만 적용)' : '';
+  fsub.textContent = isChange ? '비교할 시설 — 학교를 거르지 않고, 무엇을 기준으로 개방 변화를 볼지 정합니다' : '개방한 시설 (이 탭에서만)';
   document.getElementById('onlyOpenRow').hidden = !isFac;
   document.getElementById('changeSub').hidden = document.getElementById('changeFilters').hidden = !isChange;
   renderLayerKindChips();
@@ -3447,7 +3477,9 @@ function renderListNote() {
     site: ['교지 면적은 교사대지+체육장 공시값이며 건물 면적이 아닙니다.',
       hasSiteData() ? `학교알리미 정보공시 ${SITE_AREA_YEAR}년 공시 · 땅을 함께 쓰는 학교는 묶음 면적 ÷ 묶음 학생 수` : '']
   }[activeLayer];
-  el.textContent = note[0];
+  // 시설 칸이 있는 탭(시설 개방·개방 변화): 표의 점은 시설 하나하나의 값이라 지도 핀(학교 단위)과 색 뜻이 다름 → 점 범례 한 줄(2026-10-14)
+  const dots = showFacCols() ? '<span class="table-key">표의 점(시설별): <span class="badge open"></span>개방 <span class="badge closed"></span>미개방 <span class="badge none"></span>시설 없음·공시 제외</span>' : '';
+  el.innerHTML = esc(note[0]) + dots;
   el.title = note[1];
 }
 function toggleSummary() {
@@ -3503,8 +3535,9 @@ function updateLegend() {
     h += `<div class="legend-note">${prevYear()}→${DISCLOSURE_YEAR} 학교알리미 공시 비교 · ${activeFacilities.size ? '고른 시설' : '시설 6종'} 중 하나라도 개방했는지 기준<br>
       공시값은 해마다 학교의 5~14%에서 바뀌고 일부는 다음 해 되돌아갑니다(2021~2026 공시 점검). 한 해 변화만으로 판단하지 마세요.</div>`;
   } else {
-    h += `<div class="row"><span class="dot open"></span> 개방 (${SRC.short} 기준)</div>
-          <div class="row"><span class="dot closed"></span> 미개방 / 시설없음 / 공시 제외</div>`;
+    // 2026-10-14: 핀은 학교 단위(개방 시설이 있나), 목록 표의 점은 시설 단위라 색 뜻이 다름 — 표 점의 뜻은 목록 위(renderListNote)
+    h += `<div class="row"><span class="dot open"></span> 개방 시설 있음 (${SRC.short} 기준)</div>
+          <div class="row"><span class="dot closed"></span> 개방 시설 없음 (미개방·시설 없음·공시 제외)</div>`;
   }
   h += `<div class="row"><span class="dot" style="background:#334155"></span> 선택한 학교</div>`;
   if (SCHOOLS.some(isGenuineCoordIssue)) h += `<div class="row"><span style="display:inline-flex;align-items:center;justify-content:center;width:9px;height:9px;border-radius:50%;background:#C0392B;color:#fff;font-size:7px;font-weight:700;">!</span> 좌표 확인 필요</div>`;
@@ -3839,6 +3872,7 @@ function aggRows() {
   const sortCol = picked ? aggSort.col : 'g';
   const dir = picked ? aggSort.dir : 'asc';
   rows.sort((a, b) => {
+    if (!a.total !== !b.total) return a.total ? -1 : 1;   // 지금 조건의 학교가 없는 지역은 늘 맨 아래(화면은 흐리게, 2026-10-14)
     if (sortCol !== 'g' && (a[sortCol] == null || b[sortCol] == null)) return a[sortCol] == null ? (b[sortCol] == null ? 0 : 1) : -1;   // 값 없는 행(—)은 늘 맨 아래
     const cmp = sortCol === 'g' ? a.g.localeCompare(b.g, 'ko') : (a[sortCol] - b[sortCol]);
     return dir === 'asc' ? cmp : -cmp;
@@ -3871,7 +3905,7 @@ function renderAgg() {
     <table class="agg-table">
       <thead><tr>${th('g', unitLabel())}${th('total', '학교 수')}${countOnly ? '' : th('open', facRateName() + '개방 학교') + th('pct', facRateName() + '개방률')}
         ${cols.map(c => th(c.key, c.label)).join('')}</tr></thead>
-      <tbody>${rows.map(r => `<tr data-g="${r.g}" class="${activeGroupSet().has(r.g) ? 'sel' : ''}">${line(r)}</tr>`).join('')}</tbody>
+      <tbody>${rows.map(r => `<tr data-g="${r.g}" class="${activeGroupSet().has(r.g) ? 'sel' : ''}${r.total ? '' : ' no-school'}"${r.total ? '' : ' title="지금 조건에 맞는 학교가 없습니다"'}>${line(r)}</tr>`).join('')}</tbody>
       <tfoot><tr>${line(total)}</tr></tfoot>
     </table>
     <div class="mp-hint">${aggHintText()} 행을 누르면 해당 ${unitLabel()}만 봅니다.${groupUnit === 'office' ? '<br>' + AGG_OFFICE_NOTE : ''}</div>`;
@@ -3902,7 +3936,7 @@ function aggHintText() {
     : isSize ? `학교알리미 공시 기준 합계입니다(학급수는 특수학급 포함). 공시 제외·미조회 학교는 합계에서 빠집니다${(() => { const n = SCHOOLS.filter(s => matchesNonDistrictFilters(s) && stuOf(s) == null).length; return n ? ` (현재 조건에서 ${fmtNum(n)}개교)` : ''; })()}. `
     : isChange ? `${prevYear()}·${DISCLOSURE_YEAR}년 공시가 모두 있는 학교만 비교합니다(비교 가능). 새로 개방·개방 중단은 ${activeFacilities.size ? '고른 시설' : '시설 6종'} 중 하나라도 개방했는지를 학교 단위로, "○○ 순"은 그 시설을 새로 연 학교 수 − 닫은 학교 수입니다. `
     : '시설 열은 해당 시설을 개방하는 학교 수입니다. ') + '현재 학교급·시설·검색 조건이 반영됩니다. '
-    + '나눌 학교가 없는 칸은 0이 아니라 —(내려받은 파일은 빈칸)입니다.';
+    + '나눌 학교가 없는 칸은 0이 아니라 —(내려받은 파일은 빈칸)이고, 학교가 없는 지역은 맨 아래에 둡니다.';
 }
 const AGG_OFFICE_NOTE = '교육지원청은 학교 소재지 자치구를 묶은 기준입니다(고등학교 포함, 공식 관할 통계와 다를 수 있음).';
 // 엑셀 집계표(2026-10-04): 목록 엑셀과 같은 서식. 집계표는 탭 전용 골라 보기를 걸지 않으므로(늘 적용 조건만) 맨 위 조건 줄도 그것만 적는다.
@@ -4140,7 +4174,7 @@ async function copyViewLink() {
   const ok = await copyText(location.href);
   toast(ok ? '지금 화면 링크를 복사했습니다. 받은 사람이 열면 같은 탭·조건으로 보입니다.' : '복사하지 못했습니다. 주소창의 주소를 직접 복사해 주세요.');
 }
-document.addEventListener('click', e => { if (e.target && e.target.id === 'copyLinkBtn') copyViewLink(); });
+document.addEventListener('click', e => { if (e.target && e.target.closest && e.target.closest('#copyLinkBtn')) copyViewLink(); });
 // 이미 열린 화면에서 다른 링크를 주소창에 붙여 넣으면(# 부분만 바뀜) 그 상태로 다시 연다
 window.addEventListener('hashchange', () => { if (location.hash.slice(1) !== stateToHash()) location.reload(); });
 
@@ -4170,12 +4204,12 @@ function helpHtml() {
     <p class="help-detail-lead">값은 같은 구·같은 학교급, 서울 전체, 전년과 나란히 보여 주며, 색은 방향과 크기만 나타냅니다. 교지는 교사대지+체육장이고 건물 면적이 아닙니다.</p>
     <h3>화면 읽는 법</h3>
     <ul>
-      <li><b>맨 위 숫자 줄</b>은 조건이 없으면 <b>서울 전체</b> 값입니다. 자치구·학교급·설립·검색 조건을 걸면 그 조건의 값이 크게, 서울 전체가 아래 작게 나옵니다(탭 안에서 고른 칩은 반영하지 않음). 학교급별·시설별 합계는 조건 줄의 ${key('요약 ▾')} 에 있습니다.</li>
+      <li><b>맨 위 숫자 줄</b>은 조건이 없으면 <b>서울 전체</b> 값입니다. 자치구·학교급·설립·검색 조건을 걸면 그 조건의 값이 크게, 서울 전체가 아래 작게 나옵니다(탭 안 칩으로 학교를 거르지는 않고, 시설 개방 탭에서 시설을 고르면 그 시설 기준으로 개방·미개방을 셈). 학교급별·시설별 합계는 조건 줄의 ${key('요약 ▾')} 에 있습니다.</li>
       <li><b>자치구·학교급·설립</b>은 어느 탭에서나 걸리는 조건입니다. 탭에서만 쓰는 조건(시설, 구간, 비교 기간 등)은 "○○ 탭에서 골라 보기"의 ${key('펼치기 ▾')}를 눌러 엽니다.</li>
       <li>지도를 <b>축소</b>하면 자치구(또는 교육지원청)별 색과 숫자가, <b>확대</b>하면 학교 핀과 묶음 원(숫자 = 학교 수)이 보입니다. 자치구 숫자는 그 구의 값이라, 탭에서 고른 칩은 반영되지 않습니다.</li>
       <li>학교 핀이나 목록의 학교를 누르면 <b>학교 카드</b>가 열립니다. 지금 탭과 관련된 내용이 펼쳐져 있습니다.</li>
       <li>지도 위 ${key('반경 검색')} 은 한 지점 주변의 학교를 거리순으로, ${key('반경 밖 영역')} 은 개방 학교에서 일정 거리 밖인 영역(추정)을, ${key('집계표')} 는 자치구·교육지원청별 합계를 보여 줍니다. 목록과 집계표는 엑셀(서식 포함)·CSV로 받을 수 있습니다(목록은 정렬 옆 ${key('내려받기 ▾')}).</li>
-      <li>${key('내려받기 ▾')} 의 "🔗 이 화면 링크 복사"로 지금 탭·조건·고른 학교를 담은 주소를 동료에게 보낼 수 있습니다. 받은 사람이 열면 같은 화면이 나옵니다.</li>
+      <li>정렬 줄 오른쪽 ${key('🔗 링크')} 로 지금 탭·조건·고른 학교를 담은 주소를 동료에게 보낼 수 있습니다. 받은 사람이 열면 같은 화면이 나옵니다.</li>
     </ul>
     <h3>읽을 때 주의</h3>
     <ul>
