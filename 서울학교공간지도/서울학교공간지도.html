@@ -322,6 +322,7 @@
        오른쪽에 그려졌다(30~60px). 기준점을 왼쪽 위(0, 0)로 두고 가운데 맞춤은 여기서 한다. */
     transform: translate(-50%, -50%);
   }
+  .district-label.short { padding: 2px 6px; font-size: 11px; }   /* 멀리서 볼 때 값만(applyLabelLength) */
 
   .legend {
     position: absolute; right: 16px; bottom: 16px; z-index: 500;
@@ -1915,12 +1916,38 @@ function refreshDistrictPolygons() {
     const el = labelEls[(groupUnit === 'office' ? 'o:' : 'd:') + g];
     if (!el) return;
     const st = stats[g];
-    el.textContent = !st || st.total === 0 ? `${g} -`
+    const man = n => n >= 10000 ? fix1(n / 10000) + '만' : fmtNum(n);
+    el.dataset.full = !st || st.total === 0 ? `${g} -`
       : isSite ? `${g} ${fmtPer(sPerOf(st))}`
       : isTrend ? `${g} ${fmtPct(tRateOf(st))}`
       : isChange ? `${g} 새로 ${st.gain}곳 · 중단 ${st.loss}곳`   // 2026-10-12: "+2 −1"만으로는 학교 수인지 몰라서 글자로
-      : isSize ? `${g} ${fmtNum(st.total)}개교 · ${st.stu >= 10000 ? fix1(st.stu / 10000) + '만' : fmtNum(st.stu)}명`
+      : isSize ? `${g} ${fmtNum(st.total)}개교 · ${man(st.stu)}명`
       : st.base === 0 ? `${g} -` : `${g} ${facRateName()}${round0(st.open / st.base * 100)}%`;
+    // 짧은 라벨(멀리서 볼 때, applyLabelLength): 구 이름·시설 이름 없이 값만. 개방 변화는 "+새로 −중단"(범례 맨 위에 뜻), 학생·학급은 학생 수만
+    el.dataset.short = !st || st.total === 0 ? '-'
+      : isSite ? fmtPer(sPerOf(st))
+      : isTrend ? fmtPct(tRateOf(st))
+      : isChange ? `+${st.gain} −${st.loss}`
+      : isSize ? `${man(st.stu)}명`
+      : st.base === 0 ? '-' : `${round0(st.open / st.base * 100)}%`;
+  });
+  applyLabelLength();
+}
+// 2026-10-14: 9단계 이상(더 멀리)에서는 자치구 라벨이 길어 6~16곳씩 겹침(1364×923, 조건을 골라 지도가 서울 전체로 맞춰질 때).
+// 8단계로 열기는 보통 화면에서 서울이 지도보다 1.6배 커서 도봉구가 밖으로 나가고 강남·송파·서초가 범례에 가려 버림.
+// → 9단계에서는 값만 보이는 짧은 라벨(구 이름은 마우스를 올리면, 경계·색으로 위치는 보임) — 공개 주소 실측 다섯 탭 겹침 0건
+//   (교육지원청 단위도 9단계 긴 라벨은 남부↔동작관악 1곳이 겹쳐 같이 짧게). 10단계 이상은 짧아도 13~18곳 겹쳐 라벨을 숨기고 색만.
+//   PC·노트북에서 조건을 골라 지도를 맞출 때는 9단계보다 멀리 가지 않게 함(focusMap).
+const SHORT_LABEL_LEVEL = 9, HIDE_LABEL_LEVEL = 10;
+function applyLabelLength() {
+  if (!mapAvailable) return;
+  const lv = map.getLevel(), short = lv >= SHORT_LABEL_LEVEL, hide = lv >= HIDE_LABEL_LEVEL;
+  Object.values(labelEls).forEach(el => {
+    if (!el.dataset.full) return;
+    el.textContent = short ? el.dataset.short : el.dataset.full;
+    el.title = short ? el.dataset.full : '';
+    el.classList.toggle('short', short);
+    el.style.display = hide ? 'none' : '';
   });
 }
 
@@ -1996,7 +2023,7 @@ function initMap() {
     kakao.maps.event.addListener(map, 'click', e => {
       if (radiusMode && e && e.latLng) setRadiusCenter(e.latLng.getLat(), e.latLng.getLng());
     });
-    kakao.maps.event.addListener(map, 'zoom_changed', updateMapViewMode);
+    kakao.maps.event.addListener(map, 'zoom_changed', () => { updateMapViewMode(); applyLabelLength(); });
     updateMapViewMode();
 
     mapAvailable = true;
@@ -2079,6 +2106,14 @@ function focusMap(schools) {
   } else {
     const b = boundsOfSchools(schools);
     map.setBounds(b, 60, 60, 60, 60);
+    // 서울 전체로 맞출 때 지도가 넉넉하면(PC·노트북) 9단계보다 멀리 가지 않게 — 10단계는 자치구 라벨을 숨기는 단계(applyLabelLength).
+    // 서울은 9단계에서 약 740×520px라 지도 폭 700px 이상이면 거의 다 들어감. 휴대폰은 그대로(지도가 작아 라벨 없이 색만).
+    const el = document.getElementById('map');
+    if (map.getLevel() > SHORT_LABEL_LEVEL && el.offsetWidth >= 700) {
+      const sw = b.getSouthWest(), ne = b.getNorthEast();
+      map.setLevel(SHORT_LABEL_LEVEL);
+      map.setCenter(new kakao.maps.LatLng((sw.getLat() + ne.getLat()) / 2, (sw.getLng() + ne.getLng()) / 2));
+    }
   }
 }
 
