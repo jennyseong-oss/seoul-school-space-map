@@ -134,6 +134,17 @@
   .custom-select-option input[type=checkbox] { accent-color: var(--brand); cursor: pointer; margin: 0; pointer-events: none; }
   .custom-select-option:hover { background: var(--bg); }
   .custom-select-option.active { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+  /* 여러 곳을 고른 뒤 어디를 눌러 닫는지 헤맴(2026-10-15) → 목록 맨 아래에 늘 보이는 "완료" 줄 */
+  .custom-select-foot {
+    position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px 8px 14px; border-top: 1px solid var(--line); background: var(--panel);
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .custom-select-done {
+    padding: 6px 16px; border-radius: 8px; border: none; background: var(--brand); color: #fff;
+    font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .custom-select-done:hover { filter: brightness(1.15); }
 
   /* 2026-10-12 패널 정리 ⑤: 필터 줄 위아래 여백을 줄여 목록이 더 위에서 시작하게 */
   .filters { padding: 6px 20px 2px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -2929,7 +2940,14 @@ function renderDistrictOptions() {
     const activeCls = set.has(d) ? ' active' : '';
     return `<div class="custom-select-option${activeCls}" data-value="${d}"><input type="checkbox" tabindex="-1" ${set.has(d) ? 'checked' : ''}> ${groupFull(d)}</div>`;
   }).join('');
-  panel.innerHTML = `<div class="custom-select-option${allCls}" data-value="">전체 ${unitLabel()}</div>` + optsHtml;
+  const footText = set.size ? `${set.size}곳 선택` : `전체 ${unitLabel()}`;
+  panel.innerHTML = `<div class="custom-select-option${allCls}" data-value="">전체 ${unitLabel()}</div>` + optsHtml
+    + `<div class="custom-select-foot"><span>${footText}</span><button type="button" class="custom-select-done">완료</button></div>`;
+  panel.querySelector('.custom-select-done').onclick = e => {
+    e.stopPropagation();
+    closeDistrictSelect();
+    document.getElementById('districtSelectBtn').focus();
+  };
   panel.querySelectorAll('.custom-select-option').forEach(el => {
     el.onclick = e => {
       e.stopPropagation();
@@ -3025,7 +3043,19 @@ document.getElementById('districtSelectBtn').addEventListener('click', e => {
   if (panel.classList.contains('open')) closeDistrictSelect();
   else openDistrictSelect();
 });
-document.addEventListener('click', () => closeDistrictSelect());
+// 바깥을 누르면 닫힘: click 대신 pointerdown(캡처)으로 받아 지도·검색칸처럼 click이 문서까지 안 오는 곳을 눌러도 닫히게
+document.addEventListener('pointerdown', e => {
+  if (!document.getElementById('districtSelectPanel').classList.contains('open')) return;
+  if (e.target.closest && e.target.closest('.district-select-wrap')) return;
+  closeDistrictSelect();
+}, true);
+// Esc로 닫기 — 캡처 단계에서 먼저 받아, 같이 열린 교육지원청 카드까지 한 번에 닫히지 않게
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !document.getElementById('districtSelectPanel').classList.contains('open')) return;
+  e.stopPropagation();
+  closeDistrictSelect();
+  document.getElementById('districtSelectBtn').focus();
+}, true);
 
 renderChips(document.getElementById('levelFilters'), levels, activeLevels, setLevel, '전체 학교급');
 renderChips(document.getElementById('facilityFilters'), FACILITIES, activeFacilities, setFacility, facilityAllLabel());
