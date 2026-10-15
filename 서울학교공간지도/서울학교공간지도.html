@@ -1610,6 +1610,7 @@ function makeMarker(school) {
     title: school.name
   });
   kakao.maps.event.addListener(marker, 'click', () => {
+    if (swallowMapClick()) return;
     if (radiusMode) setRadiusCenter(school.lat, school.lng, school.name);
     else selectSchool(school);
   });
@@ -1716,7 +1717,7 @@ function buildOfficeMarkers() {
       zIndex: 20,
     });
     marker.setMap(map);
-    kakao.maps.event.addListener(marker, 'click', () => selectOffice(name));
+    kakao.maps.event.addListener(marker, 'click', () => { if (!swallowMapClick()) selectOffice(name); });
     officeMarkers[name] = marker;
   });
 }
@@ -1844,7 +1845,7 @@ const labelEls = {};
 function makeLabelEl(key, onclick) {
   const el = document.createElement('div');
   el.className = 'district-label';
-  el.onclick = onclick;
+  el.onclick = e => { if (!swallowMapClick()) onclick(e); };
   labelEls[key] = el;
   return el;
 }
@@ -1861,6 +1862,7 @@ function buildDistrictPolygons() {
       fillColor: '#C3C9D1', fillOpacity: 0.8
     });
     kakao.maps.event.addListener(polygon, 'click', e => {
+      if (swallowMapClick()) return;
       // 반경 검색 중에는 지도 어디를 눌러도 기준 위치 지정으로 동작
       if (radiusMode && e && e.latLng) setRadiusCenter(e.latLng.getLat(), e.latLng.getLng());
       else setGroup(groupOfDistrict(d.name));
@@ -2032,6 +2034,7 @@ function initMap() {
 
     // 반경 검색 모드에서는 지도를 클릭한 지점이 기준 위치가 된다
     kakao.maps.event.addListener(map, 'click', e => {
+      if (swallowMapClick()) return;
       if (radiusMode && e && e.latLng) setRadiusCenter(e.latLng.getLat(), e.latLng.getLng());
     });
     kakao.maps.event.addListener(map, 'zoom_changed', () => { updateMapViewMode(); applyLabelLength(); });
@@ -3044,11 +3047,22 @@ document.getElementById('districtSelectBtn').addEventListener('click', e => {
   else openDistrictSelect();
 });
 // 바깥을 누르면 닫힘: click 대신 pointerdown(캡처)으로 받아 지도·검색칸처럼 click이 문서까지 안 오는 곳을 눌러도 닫히게
+// 목록을 닫으려고 지도를 누른 것이면 그 클릭은 닫기만 한다 — 지역·핀 선택으로 고른 값이 바뀌던 문제(2026-10-15)
+let dsSwallowMapClick = false;
+function swallowMapClick() {
+  if (!dsSwallowMapClick) return false;
+  dsSwallowMapClick = false;
+  return true;
+}
 document.addEventListener('pointerdown', e => {
+  dsSwallowMapClick = false;
   if (!document.getElementById('districtSelectPanel').classList.contains('open')) return;
   if (e.target.closest && e.target.closest('.district-select-wrap')) return;
   closeDistrictSelect();
+  if (e.target.closest && e.target.closest('#map')) dsSwallowMapClick = true;
 }, true);
+// 누른 자리에 클릭 처리기가 없으면(빈 바다 등) 표시가 남지 않게 손을 뗀 뒤 잠시 후 지운다
+document.addEventListener('pointerup', () => { if (dsSwallowMapClick) setTimeout(() => { dsSwallowMapClick = false; }, 300); }, true);
 // Esc로 닫기 — 캡처 단계에서 먼저 받아, 같이 열린 교육지원청 카드까지 한 번에 닫히지 않게
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || !document.getElementById('districtSelectPanel').classList.contains('open')) return;
